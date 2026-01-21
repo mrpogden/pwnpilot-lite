@@ -55,6 +55,10 @@ class SessionManager:
 
     def _restore_session(self) -> None:
         """Restore session from existing file."""
+        # Track the last assistant message with tool_use for reconstruction
+        last_tool_use_ids = []
+        pending_tool_results = {}
+
         with open(self.session_file, "r", encoding="utf-8") as f:
             for line in f:
                 entry = json.loads(line.strip())
@@ -71,17 +75,46 @@ class SessionManager:
 
                 # Restore messages
                 elif entry_type == "user_message":
+                    # First, append any pending tool results
+                    if pending_tool_results and last_tool_use_ids:
+                        # Create tool_result message from pending results
+                        tool_result_blocks = []
+                        for tool_id in last_tool_use_ids:
+                            if tool_id in pending_tool_results:
+                                tool_result_blocks.append({
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_id,
+                                    "content": json.dumps(pending_tool_results[tool_id])
+                                })
+                        if tool_result_blocks:
+                            self.messages.append({
+                                "role": "user",
+                                "content": tool_result_blocks
+                            })
+                        pending_tool_results.clear()
+                        last_tool_use_ids.clear()
+
+                    # Now append the user message
                     self.messages.append({
                         "role": "user",
                         "content": entry.get("content")
                     })
+
                 elif entry_type == "assistant_blocks":
+                    blocks = entry.get("blocks", [])
                     self.messages.append({
                         "role": "assistant",
-                        "content": entry.get("blocks", [])
+                        "content": blocks
                     })
+                    # Track tool_use IDs for potential reconstruction
+                    last_tool_use_ids = [
+                        block.get("id")
+                        for block in blocks
+                        if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("id")
+                    ]
+
                 elif entry_type == "tool_result":
-                    # Restore tool result as user message with tool_result content
+                    # New format: direct tool_result message
                     tool_result_block = {
                         "type": "tool_result",
                         "tool_use_id": entry.get("tool_use_id"),
@@ -91,76 +124,89 @@ class SessionManager:
                         "role": "user",
                         "content": [tool_result_block]
                     })
+                    last_tool_use_ids.clear()
+
+                elif entry_type == "tool_output":
+                    # Old format: audit log, use for reconstruction if needed
+                    if last_tool_use_ids:
+                        # Store result for reconstruction
+                        # We don't know which tool_use_id it matches, so try to match by order
+                        if len(last_tool_use_ids) == 1:
+                            pending_tool_results[last_tool_use_ids[0]] = entry.get("result", {})
 
         # Validate and clean up incomplete tool requests
+        messages_before_cleanup = len(self.messages)
         self._cleanup_incomplete_tool_requests()
+        messages_after_cleanup = len(self.messages)
+
+        # Debug info
+        if messages_before_cleanup != messages_after_cleanup:
+            print(f"   Restored {messages_before_cleanup} messages, kept {messages_after_cleanup} after cleanup")
 
     def _cleanup_incomplete_tool_requests(self) -> None:
         """
-        Remove incomplete tool requests from restored session.
+        Remove incomplete tool requests from the END of restored session.
 
         Claude API requires that assistant messages with tool_use blocks
         must be immediately followed by user messages with tool_result blocks.
-        We need to scan through ALL messages and remove any incomplete exchanges.
+        We only clean up incomplete exchanges at the end - we trust that
+        anything in the middle of the conversation was valid when saved.
         """
         if not self.messages:
             return
 
-        cleaned_messages = []
-        i = 0
+        # Work backwards from the end to find incomplete tool requests
+        while len(self.messages) > 0:
+            last_message = self.messages[-1]
 
-        while i < len(self.messages):
-            message = self.messages[i]
-
-            # Check if this is an assistant message with tool_use
-            if message.get("role") == "assistant":
-                content = message.get("content", [])
+            # Check if last message is an assistant with tool_use
+            if last_message.get("role") == "assistant":
+                content = last_message.get("content", [])
                 if isinstance(content, list):
-                    tool_use_ids = [
-                        block.get("id")
+                    # Check if it has any tool_use blocks
+                    has_tool_use = any(
+                        isinstance(block, dict) and block.get("type") == "tool_use"
                         for block in content
-                        if isinstance(block, dict) and block.get("type") == "tool_use"
-                    ]
+                    )
 
-                    if tool_use_ids:
-                        # Check if the next message has matching tool_results
-                        has_complete_results = False
+                    if has_tool_use:
+                        # Incomplete tool request at end - remove it
+                        self.messages.pop()
+                        print("⚠️  Removed incomplete tool request from end of restored session")
+                        continue
 
-                        if i + 1 < len(self.messages):
-                            next_message = self.messages[i + 1]
-                            if next_message.get("role") == "user":
-                                next_content = next_message.get("content", [])
+            # Check if last message is user with tool_result but no preceding tool_use
+            if last_message.get("role") == "user":
+                content = last_message.get("content", [])
+                if isinstance(content, list):
+                    # Check if it has tool_result blocks
+                    has_tool_result = any(
+                        isinstance(block, dict) and block.get("type") == "tool_result"
+                        for block in content
+                    )
 
-                                # Handle both list and string content
-                                if isinstance(next_content, list):
-                                    result_ids = [
-                                        block.get("tool_use_id")
-                                        for block in next_content
-                                        if isinstance(block, dict) and block.get("type") == "tool_result"
-                                    ]
+                    if has_tool_result:
+                        # Check if previous message has matching tool_use
+                        if len(self.messages) >= 2:
+                            prev_message = self.messages[-2]
+                            if prev_message.get("role") == "assistant":
+                                prev_content = prev_message.get("content", [])
+                                if isinstance(prev_content, list):
+                                    has_prev_tool_use = any(
+                                        isinstance(block, dict) and block.get("type") == "tool_use"
+                                        for block in prev_content
+                                    )
+                                    if has_prev_tool_use:
+                                        # Valid pair - stop cleanup
+                                        break
 
-                                    # Check if all tool_use IDs have matching results
-                                    if tool_use_ids and all(tid in result_ids for tid in tool_use_ids):
-                                        has_complete_results = True
+                        # Orphaned tool_result - remove it
+                        self.messages.pop()
+                        print("⚠️  Removed orphaned tool result from end of restored session")
+                        continue
 
-                        if has_complete_results:
-                            # Complete exchange - keep both messages
-                            cleaned_messages.append(message)
-                            cleaned_messages.append(self.messages[i + 1])
-                            i += 2  # Skip both messages
-                            continue
-                        else:
-                            # Incomplete exchange - skip remaining messages
-                            removed = len(self.messages) - i
-                            plural = "message" if removed == 1 else "messages"
-                            print(f"⚠️  Removed {removed} incomplete {plural} from restored session")
-                            break
-
-            # Regular message (no tool_use) - keep it
-            cleaned_messages.append(message)
-            i += 1
-
-        self.messages = cleaned_messages
+            # Last message looks valid - stop cleanup
+            break
 
     def append_log(self, entry: Dict[str, Any]) -> None:
         """Append an entry to the session log."""
