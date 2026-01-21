@@ -504,6 +504,58 @@ OLLAMA_URL=http://localhost:11434
 MAX_MCP_TOOLS=20
 ```
 
+### Guided Mode
+
+Use PwnPilot Lite without HexStrike MCP server. AI suggests commands, you run them manually.
+
+**Enable guided mode:**
+```bash
+python main.py --guided-mode
+```
+
+**When to use:**
+- Testing without MCP infrastructure
+- Learning security tools (see exact commands)
+- Maximum control over execution
+- Limited tool availability
+
+**Example workflow:**
+```
+user> scan example.com for open ports
+
+🤖 I'll help you scan example.com. Run this command:
+
+   Command to run: nmap -sV -sC example.com
+
+This performs service version detection with default scripts.
+
+user> [paste nmap output]
+
+Starting Nmap 7.94...
+PORT    STATE SERVICE  VERSION
+80/tcp  open  http     Apache/2.4.41
+443/tcp open  ssl/http Apache/2.4.41
+...
+
+🤖 Based on the scan, I can see Apache web server on ports 80/443.
+Let's check for web vulnerabilities:
+
+   Command to run: nikto -h http://example.com
+
+user> [paste nikto output]
+```
+
+**Benefits:**
+- No MCP server setup required
+- Works in any environment with CLI tools
+- Full visibility into commands
+- Educational for learning pentesting
+
+**Limitations:**
+- No tool result caching
+- Manual command execution
+- More time-consuming than automated mode
+
 ### Custom Ollama Models
 
 Create a custom pentesting model:

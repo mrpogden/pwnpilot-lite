@@ -81,6 +81,66 @@ class SessionManager:
                         "content": entry.get("blocks", [])
                     })
 
+        # Validate and clean up incomplete tool requests
+        self._cleanup_incomplete_tool_requests()
+
+    def _cleanup_incomplete_tool_requests(self) -> None:
+        """
+        Remove incomplete tool requests from restored session.
+
+        Claude API requires that assistant messages with tool_use blocks
+        must be immediately followed by user messages with tool_result blocks.
+        If we restore a session with an incomplete tool exchange, we need to
+        remove it to avoid API validation errors.
+        """
+        if not self.messages:
+            return
+
+        removed_count = 0
+
+        # Work backwards through messages to find incomplete tool requests
+        i = len(self.messages) - 1
+        while i >= 0:
+            message = self.messages[i]
+
+            # Check if this is an assistant message with tool_use
+            if message.get("role") == "assistant":
+                content = message.get("content", [])
+                if isinstance(content, list):
+                    tool_use_ids = [
+                        block.get("id")
+                        for block in content
+                        if isinstance(block, dict) and block.get("type") == "tool_use"
+                    ]
+
+                    if tool_use_ids:
+                        # Check if the next message has matching tool_results
+                        if i + 1 < len(self.messages):
+                            next_message = self.messages[i + 1]
+                            if next_message.get("role") == "user":
+                                next_content = next_message.get("content", [])
+                                if isinstance(next_content, list):
+                                    result_ids = [
+                                        block.get("tool_use_id")
+                                        for block in next_content
+                                        if isinstance(block, dict) and block.get("type") == "tool_result"
+                                    ]
+
+                                    # If all tool_use IDs have matching results, this is complete
+                                    if all(tid in result_ids for tid in tool_use_ids):
+                                        break  # Found a complete exchange, stop cleanup
+
+                        # Incomplete tool request - remove this and all subsequent messages
+                        removed_count = len(self.messages) - i
+                        self.messages = self.messages[:i]
+                        break
+
+            i -= 1
+
+        if removed_count > 0:
+            plural = "message" if removed_count == 1 else "messages"
+            print(f"⚠️  Removed {removed_count} incomplete {plural} from restored session")
+
     def append_log(self, entry: Dict[str, Any]) -> None:
         """Append an entry to the session log."""
         entry["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

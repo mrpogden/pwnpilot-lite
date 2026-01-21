@@ -58,33 +58,63 @@ class CLI:
 
     def initialize(self) -> None:
         """Initialize CLI with tools and system prompt."""
-        # Fetch tools from MCP (with configurable timeout for many tools)
-        self.tools = self.mcp_client.fetch_tools(timeout=self.mcp_timeout)
-        self.tool_name_set = {tool.get("name") for tool in self.tools if tool.get("name")}
+        if self.mcp_client:
+            # Regular mode: fetch tools from MCP
+            self.tools = self.mcp_client.fetch_tools(timeout=self.mcp_timeout)
+            self.tool_name_set = {tool.get("name") for tool in self.tools if tool.get("name")}
 
-        # Build system prompt
-        self.system_prompt = (
-            "You are a security assistant using HexStrike MCP tools. "
-            "Only request tool usage via tool_use blocks. "
-            "The operator must approve every tool execution. "
-            "Request only one tool at a time and wait for its output before proposing another. "
-            "After each tool result, explain findings and propose the next step "
-            "before waiting for the operator to proceed. "
-            f"When you need operator input, end your response with {SessionManager.USER_INPUT_TOKEN} "
-            "on its own line. Do not include it when requesting a tool."
-        )
+            # Build system prompt for tool-based mode
+            self.system_prompt = (
+                "You are a security assistant using HexStrike MCP tools. "
+                "Only request tool usage via tool_use blocks. "
+                "The operator must approve every tool execution. "
+                "Request only one tool at a time and wait for its output before proposing another. "
+                "After each tool result, explain findings and propose the next step "
+                "before waiting for the operator to proceed. "
+                f"When you need operator input, end your response with {SessionManager.USER_INPUT_TOKEN} "
+                "on its own line. Do not include it when requesting a tool."
+            )
+        else:
+            # Guided mode: no tools, just suggest commands
+            self.tools = []
+            self.tool_name_set = set()
+
+            # Build system prompt for guided mode
+            self.system_prompt = (
+                "You are a security assistant helping with penetration testing. "
+                "The operator is running commands manually, so DO NOT use tool_use blocks. "
+                "When asked to perform a scan or test, suggest specific shell commands they should run. "
+                "Format your command suggestions clearly, for example:\n"
+                "  Command to run: nmap -sV -sC example.com\n\n"
+                "After suggesting a command, the operator will run it and paste the output. "
+                "Then analyze the results and suggest the next step. "
+                "Be specific about command-line flags and options. "
+                "Focus on security testing tools like nmap, nikto, sqlmap, nuclei, curl, etc. "
+                "Suggest one command at a time and wait for the operator to provide results."
+            )
 
         # Display configuration
-        if self.enable_caching and self.ai_provider.supports_caching():
-            print("✅ Prompt caching enabled (system + tools cached)")
-        if self.token_tracker and self.show_tokens:
-            print("📊 Token monitoring enabled")
-        if self.tool_cache and self.tool_cache.enabled:
-            print(f"🔄 Tool result caching enabled (TTL: {self.tool_cache.ttl_seconds}s)")
-        if self.enable_streaming and self.ai_provider.supports_streaming():
-            print("⚡ Streaming responses enabled")
-
-        print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id>")
+        if self.mcp_client:
+            # Regular mode with MCP tools
+            if self.enable_caching and self.ai_provider.supports_caching():
+                print("✅ Prompt caching enabled (system + tools cached)")
+            if self.token_tracker and self.show_tokens:
+                print("📊 Token monitoring enabled")
+            if self.tool_cache and self.tool_cache.enabled:
+                print(f"🔄 Tool result caching enabled (TTL: {self.tool_cache.ttl_seconds}s)")
+            if self.enable_streaming and self.ai_provider.supports_streaming():
+                print("⚡ Streaming responses enabled")
+            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id>")
+        else:
+            # Guided mode
+            if self.enable_caching and self.ai_provider.supports_caching():
+                print("✅ Prompt caching enabled")
+            if self.token_tracker and self.show_tokens:
+                print("📊 Token monitoring enabled")
+            if self.enable_streaming and self.ai_provider.supports_streaming():
+                print("⚡ Streaming responses enabled")
+            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id>")
+            print("\n💡 In guided mode: AI suggests commands, you run them and paste results back")
 
     def run(self) -> None:
         """Run the main conversation loop."""
@@ -171,6 +201,11 @@ class CLI:
                 # Check for tool requests
                 tool_blocks = [b for b in blocks if b.get("type") == "tool_use"]
                 if not tool_blocks:
+                    # In guided mode, always assume user needs to provide input
+                    if not self.mcp_client:
+                        self.session_manager.add_assistant_message(blocks)
+                        break
+                    # In tool mode, check if user input was requested
                     if not user_input_requested:
                         print("\n⚠️  Model did not request user input; returning to prompt.\n")
                     break
@@ -249,9 +284,9 @@ class CLI:
                 self.session_manager.compress_context(summary, keep_recent=6)
                 new_count = len(self.session_manager.get_messages())
 
-                # Mark summarization as performed
+                # Reset context tracking
                 if self.token_tracker:
-                    self.token_tracker.summarization_performed = True
+                    self.token_tracker.reset_context_tracking()
 
                 # Log the summarization
                 self.session_manager.append_log({
@@ -260,6 +295,11 @@ class CLI:
                     "messages_before": old_count,
                     "messages_after": new_count,
                 })
+
+                print(f"\n✅ Context compressed: {old_count} messages → {new_count} messages")
+                if self.token_tracker:
+                    usage = self.token_tracker.get_context_usage()
+                    print(f"   Context usage reset to ~{usage:.1f}%\n")
             else:
                 print("\n⏸️  Context compression cancelled.\n")
         else:
@@ -385,11 +425,13 @@ class CLI:
                 self.session_manager.compress_context(summary, keep_recent=6)
                 new_count = len(self.session_manager.get_messages())
 
-                print(f"\n✅ Context auto-compressed: {old_count} messages → {new_count} messages")
-                print("   This helps prevent context limit errors.\n")
+                # Reset context tracking
+                self.token_tracker.reset_context_tracking()
 
-                # Mark summarization as performed
-                self.token_tracker.summarization_performed = True
+                print(f"\n✅ Context auto-compressed: {old_count} messages → {new_count} messages")
+                usage = self.token_tracker.get_context_usage()
+                print(f"   Context usage reset to ~{usage:.1f}%")
+                print("   This helps prevent context limit errors.\n")
 
                 # Log the summarization
                 self.session_manager.append_log({

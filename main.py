@@ -77,6 +77,8 @@ def setup_arguments() -> argparse.Namespace:
                        help="Disable streaming responses")
     parser.add_argument("--mcp-timeout", type=int, default=30,
                        help="MCP health check timeout in seconds (default: 30, increase for many tools)")
+    parser.add_argument("--guided-mode", action="store_true",
+                       help="Enable guided mode (AI suggests commands, you run them manually, no MCP needed)")
     return parser.parse_args()
 
 
@@ -160,12 +162,17 @@ def main() -> None:
     # Parse arguments
     args = setup_arguments()
 
-    # Initialize MCP client
-    mcp_client = MCPClient(args.mcp_url)
-
-    # Check MCP health (with configurable timeout for environments with many tools)
-    if not mcp_client.check_health(timeout=args.mcp_timeout):
-        sys.exit(1)
+    # Initialize MCP client (skip in guided mode)
+    mcp_client = None
+    if not args.guided_mode:
+        mcp_client = MCPClient(args.mcp_url)
+        # Check MCP health (with configurable timeout for environments with many tools)
+        if not mcp_client.check_health(timeout=args.mcp_timeout):
+            sys.exit(1)
+    else:
+        print("\n🧭 Guided Mode: AI will suggest commands for you to run manually")
+        print("   No HexStrike MCP server needed")
+        print("   You run commands and paste results back\n")
 
     # Initialize session manager (uses per-session files in sessions/ directory)
     session_manager = SessionManager(sessions_dir="sessions")
@@ -206,8 +213,9 @@ def main() -> None:
         enabled=tool_cache_enabled
     )
 
-    # Set tool cache on MCP client
-    mcp_client.tool_cache = tool_cache
+    # Set tool cache on MCP client (skip in guided mode)
+    if mcp_client:
+        mcp_client.tool_cache = tool_cache
 
     # Determine caching and streaming settings
     enable_caching = not args.disable_caching and args.enable_caching

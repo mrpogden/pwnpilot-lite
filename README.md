@@ -9,6 +9,7 @@ AI-assisted penetration testing tool combining AWS Bedrock or local Ollama model
 - ⚡ Streaming responses and smart caching
 - 🔄 Context summarization to prevent limit errors
 - 📁 Per-session logging with restoration capability
+- 🧭 Guided mode for manual command execution (no MCP needed)
 - 🎯 Modular architecture for easy extension
 
 ## Features
@@ -167,6 +168,7 @@ user> /cache
 | `--enable-streaming` | true | Enable streaming responses |
 | `--disable-streaming` | false | Disable streaming responses |
 | `--mcp-timeout` | 30 | MCP health check timeout in seconds (increase for many tools) |
+| `--guided-mode` | false | Enable guided mode (AI suggests commands, you run them manually, no MCP needed) |
 
 ## Environment Variables
 
@@ -284,6 +286,67 @@ python pwnpilot_lite.py --disable-tool-cache
 # Custom TTL (10 minutes)
 python pwnpilot_lite.py --tool-cache-ttl 600
 ```
+
+## Guided Mode
+
+Guided mode allows you to use PwnPilot Lite without HexStrike MCP server. Perfect for environments where you can't run MCP or prefer manual control.
+
+### How It Works
+
+1. **No MCP Required**: AI suggests commands but doesn't execute them
+2. **You Run Commands**: Copy suggested commands and run them in your terminal
+3. **Paste Results**: Paste command output back to the AI
+4. **AI Analysis**: AI analyzes results and suggests next steps
+
+### Enable Guided Mode
+
+```bash
+python main.py --guided-mode
+```
+
+### Example Session
+
+```
+user> scan example.com for open ports
+
+🤖 I'll help you scan example.com. Here's the command to run:
+
+Command to run: nmap -sV -sC example.com
+
+This will perform a service version detection scan with default scripts.
+Please run this command and paste the output.
+
+user> [paste nmap output here]
+
+Starting Nmap 7.94...
+PORT    STATE SERVICE  VERSION
+80/tcp  open  http     Apache httpd 2.4.41
+443/tcp open  ssl/http Apache httpd 2.4.41
+
+🤖 Based on the scan results, I can see ports 80 and 443 are open...
+Let's check for web vulnerabilities:
+
+Command to run: nikto -h http://example.com
+
+user> [paste nikto output here]
+
+[conversation continues...]
+```
+
+### Benefits
+
+- **No Infrastructure**: No need to set up HexStrike MCP server
+- **Full Control**: You approve and run every command manually
+- **Flexible Environment**: Run commands anywhere you have access
+- **Learning Tool**: See exactly what commands are being used
+
+### When to Use Guided Mode
+
+- Testing PwnPilot Lite without full setup
+- Environments where MCP can't be deployed
+- Learning security testing techniques
+- Maximum control over command execution
+- Limited tool availability on target system
 
 ## Notes
 

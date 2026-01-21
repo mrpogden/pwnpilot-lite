@@ -130,6 +130,25 @@ class TokenTracker:
         usage = self.get_context_usage()
         return usage >= 85.0 and not self.summarization_performed
 
+    def reset_context_tracking(self) -> None:
+        """
+        Reset context tracking after summarization.
+
+        This resets the input/output token totals to reflect reduced context,
+        while preserving cache token counts (which are request-specific).
+        The context is estimated based on summary + recent messages.
+        """
+        # Reset cumulative context tokens (not cache tokens)
+        # Keep a small baseline for summary + recent messages (estimate ~2000 tokens)
+        self.total_input_tokens = 2000
+        self.total_output_tokens = 0
+
+        # Reset warnings so they can trigger again if context grows
+        self.warnings_shown.clear()
+
+        # Mark that summarization was performed
+        self.summarization_performed = True
+
     def format_summary(self, last_request_usage: Optional[Dict[str, Any]] = None) -> str:
         """Format a summary string for display."""
         lines = []

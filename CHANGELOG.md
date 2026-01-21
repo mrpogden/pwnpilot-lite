@@ -12,6 +12,8 @@ All notable changes to PwnPilot Lite will be documented in this file.
 - **Context Summarization**: `/summarize` command with AI-powered compression
 - **AWS Region Auto-Detection**: Reads default region from AWS CLI config
 - **Regional API Compatibility**: Fixed pagination issues in regions like `eu-north-1`
+- **Guided Mode**: `--guided-mode` flag for manual command execution (no MCP server needed)
+- **Configurable MCP Timeout**: `--mcp-timeout` flag for large tool deployments (default: 30s)
 - **Comprehensive Documentation**: Added `HELP.md` with complete user guide
 
 ### Changed
@@ -21,6 +23,7 @@ All notable changes to PwnPilot Lite will be documented in this file.
 ### Fixed
 - "Cannot be paginated" error in certain AWS regions
 - Context overflow issues with warnings and auto-summarization
+- MCP health check timeouts in environments with many tools (100+)
 
 ## [1.0.0] - 2026-01-14
 
