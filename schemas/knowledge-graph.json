@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Knowledge Graph Schema",
+  "description": "Schema for the Knowledge Graph structure used in security assessments",
+  "type": "object",
+  "required": ["target", "session_id", "last_updated", "nodes", "edges"],
+  "properties": {
+    "target": {
+      "type": "string",
+      "description": "The target of the security assessment"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "The session identifier"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of last update"
+    },
+    "nodes": {
+      "type": "array",
+      "description": "List of discovered assets and entities",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "identifier", "discovered_at"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this node"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["domain", "ip", "service", "cloud_resource", "vulnerability", "technology", "credential", "endpoint"],
+            "description": "Type of the node"
+          },
+          "identifier": {
+            "type": "string",
+            "description": "Human-readable identifier (e.g., domain name, IP address)"
+          },
+          "properties": {
+            "type": "object",
+            "description": "Additional properties specific to this node",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["active", "inactive", "unknown"],
+                "description": "Status of the asset"
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low", "info"],
+                "description": "Severity level (for vulnerabilities)"
+              },
+              "confidence": {
+                "type": "string",
+                "enum": ["confirmed", "likely", "possible", "inconclusive"],
+                "description": "Confidence level in the finding"
+              }
+            }
+          },
+          "discovered_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 timestamp when this node was discovered"
+          },
+          "discovered_by": {
+            "type": "string",
+            "description": "Tool or method that discovered this node"
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "Relationships between nodes",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "relationship"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "ID of the source node"
+          },
+          "to": {
+            "type": "string",
+            "description": "ID of the destination node"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": ["hosts", "uses", "exposes", "connects_to", "depends_on", "vulnerable_to", "part_of"],
+            "description": "Type of relationship between nodes"
+          },
+          "properties": {
+            "type": "object",
+            "description": "Additional properties of the relationship"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata about the knowledge graph",
+      "properties": {
+        "total_nodes": {
+          "type": "integer",
+          "description": "Total number of nodes"
+        },
+        "total_edges": {
+          "type": "integer",
+          "description": "Total number of edges"
+        },
+        "assessment_phase": {
+          "type": "string",
+          "enum": ["reconnaissance", "fingerprinting", "scanning", "validation", "reporting"],
+          "description": "Current phase of the assessment"
+        }
+      }
+    }
+  }
+}

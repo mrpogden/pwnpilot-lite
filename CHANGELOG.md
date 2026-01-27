@@ -2,6 +2,60 @@
 
 All notable changes to PwnPilot Lite will be documented in this file.
 
+## [2.1.0] - 2026-01-26
+
+### Added
+- **Prompt System**: Flexible prompt loading system with three modes (basic, advanced, custom)
+- **Advanced Mode (Masterprompt)**: Full OODA loop security assessment methodology
+  - Comprehensive OODA loop framework (Observe, Orient, Decide, Act, Validate)
+  - Knowledge Graph tracking for discovered assets and relationships
+  - Phased assessment approach with progressive disclosure
+  - Tool rotation strategy for failure recovery
+  - Recursive discovery of new assets
+  - Confidence ratings for all findings (CONFIRMED, LIKELY, POSSIBLE, INCONCLUSIVE)
+  - Tech-stack fingerprinting before testing
+  - Context-aware vulnerability scanning
+  - Ethics and legal guardrails
+  - Self-check protocol for quality assurance
+- **Custom Prompts**: Load custom prompt templates with variable support
+- **Template Engine**: Dynamic variable replacement in prompts
+  - `{{TARGET}}` - Target specification
+  - `{{SESSION_ID}}` - Session identifier
+  - `{{DATE}}` - Current date
+  - `{{MODEL_ID}}` - Model being used
+- **Target Tracking**: Store and restore target across sessions
+- **Knowledge Graph Storage**: Persist and restore Knowledge Graph in sessions
+- **Prompt Files**: Organized prompt templates in `prompts/` directory
+- **JSON Schemas**: Schema definitions for Knowledge Graph and vulnerabilities
+- **Examples**: Sample assessment report showing expected output
+- **New CLI Arguments**:
+  - `--prompt-mode`: Choose basic, advanced, or custom mode
+  - `--prompt-file`: Path to custom prompt file
+  - `--target`: Specify target for security assessment
+- **Session Manager Extensions**:
+  - `set_target()` and `get_target()` methods
+  - `update_knowledge_graph()` and `get_knowledge_graph()` methods
+  - Target and Knowledge Graph restoration from saved sessions
+
+### Changed
+- System prompts now loaded from files instead of hardcoded
+- Fallback to hardcoded prompts if files are missing (backward compatibility)
+- CLI initialization refactored to use PromptLoader
+- Enhanced session restoration to include target and Knowledge Graph
+
+### Documentation
+- Comprehensive prompt modes documentation in README.md
+- Created `prompts/README.md` with prompt usage guide
+- Created `schemas/README.md` with schema documentation
+- Created `examples/README.md` with example outputs
+- Updated configuration table with new options
+
+### Backward Compatibility
+- Default behavior unchanged (uses basic mode)
+- Existing sessions continue to work
+- Fallback to hardcoded prompts if files missing
+- No breaking changes to APIs
+
 ## [2.0.0] - 2026-01-19
 
 ### Added

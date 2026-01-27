@@ -4,6 +4,8 @@ import json
 from typing import Any, Dict, List, Optional
 
 from pwnpilot_lite.core.ai_provider import AIProvider
+from pwnpilot_lite.prompts.prompt_loader import PromptLoader
+from pwnpilot_lite.prompts.template_engine import TemplateEngine
 from pwnpilot_lite.session.session_manager import SessionManager
 from pwnpilot_lite.session.token_tracker import TokenTracker
 from pwnpilot_lite.tools.mcp_client import MCPClient
@@ -25,6 +27,9 @@ class CLI:
         enable_streaming: bool = True,
         show_tokens: bool = True,
         mcp_timeout: int = 30,
+        prompt_mode: str = "basic",
+        prompt_file: Optional[str] = None,
+        guided_mode: bool = False,
     ):
         """
         Initialize CLI.
@@ -40,6 +45,9 @@ class CLI:
             enable_streaming: Enable streaming responses
             show_tokens: Show token usage stats
             mcp_timeout: MCP health check timeout in seconds
+            prompt_mode: Prompt mode (basic, advanced, custom)
+            prompt_file: Path to custom prompt file
+            guided_mode: Whether in guided mode
         """
         self.ai_provider = ai_provider
         self.mcp_client = mcp_client
@@ -51,6 +59,9 @@ class CLI:
         self.enable_streaming = enable_streaming
         self.show_tokens = show_tokens
         self.mcp_timeout = mcp_timeout
+        self.prompt_mode = prompt_mode
+        self.prompt_file = prompt_file
+        self.guided_mode = guided_mode
 
         self.tools = []
         self.tool_name_set = set()
@@ -62,36 +73,38 @@ class CLI:
             # Regular mode: fetch tools from MCP
             self.tools = self.mcp_client.fetch_tools(timeout=self.mcp_timeout)
             self.tool_name_set = {tool.get("name") for tool in self.tools if tool.get("name")}
-
-            # Build system prompt for tool-based mode
-            self.system_prompt = (
-                "You are a security assistant using HexStrike MCP tools. "
-                "Only request tool usage via tool_use blocks. "
-                "The operator must approve every tool execution. "
-                "Request only one tool at a time and wait for its output before proposing another. "
-                "After each tool result, explain findings and propose the next step "
-                "before waiting for the operator to proceed. "
-                f"When you need operator input, end your response with {SessionManager.USER_INPUT_TOKEN} "
-                "on its own line. Do not include it when requesting a tool."
-            )
         else:
             # Guided mode: no tools, just suggest commands
             self.tools = []
             self.tool_name_set = set()
 
-            # Build system prompt for guided mode
-            self.system_prompt = (
-                "You are a security assistant helping with penetration testing. "
-                "The operator is running commands manually, so DO NOT use tool_use blocks. "
-                "When asked to perform a scan or test, suggest specific shell commands they should run. "
-                "Format your command suggestions clearly, for example:\n"
-                "  Command to run: nmap -sV -sC example.com\n\n"
-                "After suggesting a command, the operator will run it and paste the output. "
-                "Then analyze the results and suggest the next step. "
-                "Be specific about command-line flags and options. "
-                "Focus on security testing tools like nmap, nikto, sqlmap, nuclei, curl, etc. "
-                "Suggest one command at a time and wait for the operator to provide results."
-            )
+        # Load system prompt using prompt loader
+        prompt_loader = PromptLoader()
+
+        # Get template variables
+        target = self.session_manager.get_target()
+        session_id = self.session_manager.session_id
+        model_id = self.session_manager.metadata.get("model_id", "unknown")
+
+        variables = TemplateEngine.get_default_variables(
+            target=target,
+            session_id=session_id,
+            model_id=model_id
+        )
+
+        # Load prompt based on mode
+        self.system_prompt = prompt_loader.load_prompt(
+            mode=self.prompt_mode,
+            guided_mode=self.guided_mode,
+            custom_file=self.prompt_file,
+            variables=variables
+        )
+
+        # Show prompt mode info
+        if self.prompt_mode == "advanced":
+            print("🧠 Advanced Mode: Full OODA loop security assessment with Knowledge Graph")
+        elif self.prompt_mode == "custom":
+            print(f"📝 Custom Mode: Using prompt from {self.prompt_file}")
 
         # Display configuration
         if self.mcp_client:

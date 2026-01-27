@@ -72,6 +72,10 @@ class SessionManager:
                     self.metadata["model_source"] = entry.get("value")
                 elif entry_type == "model_selected":
                     self.metadata["model_id"] = entry.get("model_id")
+                elif entry_type == "target_set":
+                    self.metadata["target"] = entry.get("target")
+                elif entry_type == "knowledge_graph_updated":
+                    self.metadata["knowledge_graph"] = entry.get("knowledge_graph")
 
                 # Restore messages
                 elif entry_type == "user_message":
@@ -292,6 +296,50 @@ class SessionManager:
     def update_metadata(self, **kwargs) -> None:
         """Update session metadata."""
         self.metadata.update(kwargs)
+
+    def set_target(self, target: str) -> None:
+        """
+        Set the target for the security assessment.
+
+        Args:
+            target: Target domain, IP, or organization name
+        """
+        self.metadata["target"] = target
+        self.append_log({
+            "type": "target_set",
+            "target": target
+        })
+
+    def get_target(self) -> Optional[str]:
+        """
+        Get the current target for the security assessment.
+
+        Returns:
+            Target string or None if not set
+        """
+        return self.metadata.get("target")
+
+    def update_knowledge_graph(self, knowledge_graph: Dict[str, Any]) -> None:
+        """
+        Update the knowledge graph for the current assessment.
+
+        Args:
+            knowledge_graph: Knowledge graph data structure
+        """
+        self.metadata["knowledge_graph"] = knowledge_graph
+        self.append_log({
+            "type": "knowledge_graph_updated",
+            "knowledge_graph": knowledge_graph
+        })
+
+    def get_knowledge_graph(self) -> Dict[str, Any]:
+        """
+        Get the current knowledge graph.
+
+        Returns:
+            Knowledge graph dictionary or empty dict if not set
+        """
+        return self.metadata.get("knowledge_graph", {})
 
     @staticmethod
     def list_sessions(sessions_dir: str = "sessions") -> List[Dict[str, Any]]:

@@ -79,6 +79,12 @@ def setup_arguments() -> argparse.Namespace:
                        help="MCP health check timeout in seconds (default: 30, increase for many tools)")
     parser.add_argument("--guided-mode", action="store_true",
                        help="Enable guided mode (AI suggests commands, you run them manually, no MCP needed)")
+    parser.add_argument("--prompt-mode", choices=["basic", "advanced", "custom"], default="basic",
+                       help="Prompt mode: basic (default), advanced (masterprompt), or custom")
+    parser.add_argument("--prompt-file", type=str,
+                       help="Path to custom prompt file (required for custom mode)")
+    parser.add_argument("--target", type=str,
+                       help="Target for security assessment (domain, IP, or organization)")
     return parser.parse_args()
 
 
@@ -221,6 +227,21 @@ def main() -> None:
     enable_caching = not args.disable_caching and args.enable_caching
     enable_streaming = not args.disable_streaming and args.enable_streaming
 
+    # Handle target for advanced mode
+    target = args.target
+    if args.prompt_mode == "advanced" and not target:
+        # Prompt for target if not provided
+        print("\n🎯 Advanced mode requires a target specification")
+        target = input("Please specify the target for this security assessment (domain, IP, or organization name): ").strip()
+        if not target:
+            print("⚠️  Target is required for advanced mode. Falling back to basic mode.")
+            args.prompt_mode = "basic"
+
+    # Store target in session if provided
+    if target:
+        session_manager.set_target(target)
+        print(f"🎯 Target: {target}")
+
     # Initialize CLI
     cli = CLI(
         ai_provider=ai_provider,
@@ -233,6 +254,9 @@ def main() -> None:
         enable_streaming=enable_streaming,
         show_tokens=args.show_tokens,
         mcp_timeout=args.mcp_timeout,
+        prompt_mode=args.prompt_mode,
+        prompt_file=args.prompt_file,
+        guided_mode=args.guided_mode,
     )
 
     # Initialize and run

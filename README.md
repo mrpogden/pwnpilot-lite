@@ -169,6 +169,9 @@ user> /cache
 | `--disable-streaming` | false | Disable streaming responses |
 | `--mcp-timeout` | 30 | MCP health check timeout in seconds (increase for many tools) |
 | `--guided-mode` | false | Enable guided mode (AI suggests commands, you run them manually, no MCP needed) |
+| `--prompt-mode` | basic | Prompt mode: basic (default), advanced (masterprompt), or custom |
+| `--prompt-file` | None | Path to custom prompt file (required for custom mode) |
+| `--target` | None | Target for security assessment (domain, IP, or organization) |
 
 ## Environment Variables
 
@@ -347,6 +350,201 @@ user> [paste nikto output here]
 - Learning security testing techniques
 - Maximum control over command execution
 - Limited tool availability on target system
+
+## Prompt Modes
+
+PwnPilot Lite now supports three prompt modes to customize the AI's behavior and assessment approach:
+
+### Available Modes
+
+1. **Basic Mode** (default): Simple, concise prompts for standard security testing
+2. **Advanced Mode**: Full OODA loop security assessment with Knowledge Graph tracking
+3. **Custom Mode**: Load your own custom prompt template
+
+### Basic Mode (Default)
+
+The default mode provides straightforward security assistance with tool approval workflow:
+
+```bash
+python main.py
+```
+
+Features:
+- Simple, focused prompts
+- One tool at a time execution
+- Operator approval required
+- Works in both tool mode and guided mode
+
+### Advanced Mode (Masterprompt)
+
+Advanced mode uses a comprehensive OODA loop methodology with continuous Knowledge Graph updates:
+
+```bash
+python main.py --prompt-mode advanced --target example.com
+```
+
+Features:
+- **OODA Loop Framework**: Observe, Orient, Decide, Act, Validate
+- **Knowledge Graph**: Maintains internal graph of discovered assets and relationships
+- **Phased Approach**: External reconnaissance → Active reconnaissance → Vulnerability identification → Validation
+- **Progressive Disclosure**: Structured assessment with checkpoint reports
+- **Tool Rotation**: Automatically switches between tools if one fails or is rate-limited
+- **Recursive Discovery**: Automatically explores newly discovered assets
+- **Failure Recovery**: Adapts to WAF blocks, rate limits, and errors
+- **Confidence Ratings**: Each finding includes confidence level (CONFIRMED, LIKELY, POSSIBLE, INCONCLUSIVE)
+- **Tech-Stack Fingerprinting**: Builds comprehensive technology profile before testing
+- **Context-Aware Scanning**: Tailors vulnerability scans to detected technologies
+- **Ethics & Legal Guardrails**: Built-in safety protocols and scope boundaries
+
+#### Target Specification
+
+Advanced mode requires a target. You can specify it via command line or you'll be prompted:
+
+```bash
+# Specify target on command line
+python main.py --prompt-mode advanced --target example.com
+
+# Or be prompted at startup
+python main.py --prompt-mode advanced
+# > Please specify the target for this security assessment: example.com
+```
+
+#### Knowledge Graph Tracking
+
+In advanced mode, the AI maintains a Knowledge Graph of:
+- Discovered assets (domains, IPs, services, cloud resources)
+- Technologies and versions
+- Vulnerabilities and their confidence levels
+- Relationships between assets
+
+You can update and retrieve the Knowledge Graph via the session manager:
+
+```python
+# In your code (for extensions):
+kg = session_manager.get_knowledge_graph()
+session_manager.update_knowledge_graph(updated_kg)
+```
+
+#### Example Advanced Session
+
+```
+user> Begin assessment
+
+🤖 Beginning comprehensive security assessment of example.com
+
+Phase 1: External Reconnaissance
+- Performing DNS enumeration...
+- Discovering subdomains...
+- Mapping public attack surface...
+
+[AI proposes DNS enumeration tool]
+
+🔧 Proposed tool: subfinder
+   Input: {"target": "example.com"}
+
+Approve this command? [y/N]: y
+
+📄 Tool output:
+- example.com
+- www.example.com
+- api.example.com
+- dev.example.com
+
+🧠 Knowledge Graph Updated:
+- Added 4 domain nodes
+- Discovered 1 development environment (potential high-value target)
+
+Proceeding to Phase 2: Active Reconnaissance...
+```
+
+### Custom Mode
+
+Load your own custom prompt template:
+
+```bash
+python main.py --prompt-mode custom --prompt-file my-prompt.md --target example.com
+```
+
+#### Creating Custom Prompts
+
+Custom prompts support template variables:
+
+- `{{TARGET}}` - The target for assessment
+- `{{SESSION_ID}}` - Current session identifier
+- `{{DATE}}` - Current date
+- `{{MODEL_ID}}` - AI model being used
+
+Example custom prompt (`my-prompt.md`):
+
+```markdown
+You are a security assistant analyzing {{TARGET}}.
+Session: {{SESSION_ID}}
+Date: {{DATE}}
+
+[Your custom instructions here]
+```
+
+See `prompts/custom-template.md` for a complete template.
+
+### Prompt Mode Comparison
+
+| Feature | Basic | Advanced | Custom |
+|---------|-------|----------|--------|
+| Tool approval required | ✅ | ✅ | ✅ |
+| OODA loop methodology | ❌ | ✅ | Depends |
+| Knowledge Graph | ❌ | ✅ | Depends |
+| Progressive disclosure | ❌ | ✅ | Depends |
+| Target tracking | ❌ | ✅ | Depends |
+| Phased assessment | ❌ | ✅ | Depends |
+| Confidence ratings | ❌ | ✅ | Depends |
+| Tech fingerprinting | ❌ | ✅ | Depends |
+| Customizable | ❌ | ❌ | ✅ |
+
+### Configuration Table Update
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--prompt-mode` | basic | Prompt mode: basic, advanced, or custom |
+| `--prompt-file` | None | Path to custom prompt file (required for custom mode) |
+| `--target` | None | Target for security assessment (domain, IP, or organization) |
+
+### Session Restoration with Advanced Mode
+
+When you restore a session that was created in advanced mode, the target and Knowledge Graph are automatically restored:
+
+```bash
+# Original session
+python main.py --prompt-mode advanced --target example.com
+# [perform assessment, discover assets, exit]
+
+# Later - restore session
+/sessions
+/load 20240126153045
+
+# Target and Knowledge Graph automatically restored from session
+```
+
+### Best Practices
+
+**Use Basic Mode When:**
+- Quick, focused security tasks
+- Simple reconnaissance or testing
+- You want minimal AI overhead
+- Learning to use the tool
+
+**Use Advanced Mode When:**
+- Comprehensive security assessments
+- Bug bounty hunting
+- Penetration testing engagements
+- Need structured methodology
+- Want detailed reports with evidence
+- Tracking complex attack surfaces
+
+**Use Custom Mode When:**
+- Specialized assessment requirements
+- Organization-specific methodology
+- Testing new prompt approaches
+- Research and development
 
 ## Notes
 
