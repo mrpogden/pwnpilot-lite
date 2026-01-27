@@ -1,0 +1,141 @@
+# DISCLAIMER
+
+## Authorization and Legal Use
+
+**IMPORTANT:** PwnPilot Lite is designed for authorized security testing only.
+
+By using this software, you agree that:
+
+1. **Authorization Required**: You will ONLY use this tool on systems, networks, and
+   applications for which you have explicit written authorization to test.
+
+2. **Legal Compliance**: You are responsible for complying with all applicable local,
+   state, national, and international laws and regulations.
+
+3. **Unauthorized Access**: Unauthorized access to computer systems is illegal under
+   laws such as the Computer Fraud and Abuse Act (CFAA) in the United States and
+   similar legislation in other jurisdictions.
+
+4. **Scope of Authorization**: You will respect the scope and boundaries of any
+   authorized testing engagement.
+
+## Intended Use Cases
+
+This tool is intended ONLY for:
+
+- **Authorized Penetration Testing**: With written permission from system owners
+- **Security Research**: On systems you own or have explicit permission to test
+- **Bug Bounty Programs**: Within the rules and scope of the program
+- **Educational Purposes**: In controlled lab environments
+- **Red Team Exercises**: As part of authorized security assessments
+- **Vulnerability Assessment**: With proper authorization and scope
+
+## Prohibited Uses
+
+You may NOT use this tool for:
+
+- Unauthorized access to systems, networks, or data
+- Malicious hacking or criminal activity
+- Denial of service attacks
+- Data theft or destruction
+- Privacy violations
+- Any activity that violates laws or regulations
+- Any activity that causes harm to individuals or organizations
+
+## Liability Disclaimer
+
+**NO WARRANTY:** This software is provided "AS IS" without warranty of any kind,
+either expressed or implied, including but not limited to:
+
+- Fitness for a particular purpose
+- Merchantability
+- Non-infringement
+- Accuracy or reliability of results
+
+**USE AT YOUR OWN RISK:** The authors and contributors of PwnPilot Lite:
+
+1. Are NOT responsible for any damage, data loss, legal consequences, or other harm
+   resulting from the use or misuse of this software.
+
+2. Are NOT liable for any direct, indirect, incidental, special, exemplary, or
+   consequential damages arising from the use of this software.
+
+3. Do NOT guarantee the accuracy, completeness, or reliability of security findings
+   or assessments produced by this tool.
+
+4. Are NOT responsible for decisions made based on the output of this software.
+
+## Ethical Use and Responsible Disclosure
+
+Users of this software are expected to:
+
+1. **Practice Responsible Disclosure**: If you discover vulnerabilities, follow
+   responsible disclosure practices and notify affected parties appropriately.
+
+2. **Respect Privacy**: Do not access, collect, or disclose sensitive information
+   without explicit authorization.
+
+3. **Minimize Impact**: Use the least invasive testing methods necessary and avoid
+   causing service disruptions.
+
+4. **Document Authorization**: Maintain clear documentation of all testing
+   authorizations and scope agreements.
+
+5. **Professional Ethics**: Follow established professional ethics guidelines such as
+   those from EC-Council, (ISC)², SANS, or similar organizations.
+
+## AI-Assisted Security Testing
+
+This tool uses AI models to assist with security testing. Be aware that:
+
+1. **AI Limitations**: AI models may make mistakes, provide incorrect analysis, or
+   suggest inappropriate actions.
+
+2. **Human Oversight**: Always review and validate AI suggestions before executing
+   them.
+
+3. **False Positives/Negatives**: AI analysis may produce false positives or miss
+   actual vulnerabilities.
+
+4. **No Substitute for Expertise**: This tool is not a replacement for professional
+   security expertise and judgment.
+
+## Data and Privacy
+
+1. **Session Data**: This tool stores session data locally. You are responsible for
+   protecting this data and ensuring it does not contain sensitive information.
+
+2. **AI Provider Data**: When using cloud AI providers (e.g., AWS Bedrock), your
+   interactions may be subject to the provider's terms of service and data handling
+   policies.
+
+3. **Sensitive Information**: Do not input sensitive credentials, personal
+   information, or confidential data unless you understand the security implications.
+
+## Modifications and Distribution
+
+1. **Open Source**: This software is open source. Users may modify it, but must
+   ensure their modifications comply with the license.
+
+2. **Attribution**: Maintain proper attribution when distributing or modifying this
+   software.
+
+3. **Responsibility**: Those who modify this software are responsible for the
+   security and legality of their modifications.
+
+## Acceptance
+
+**BY USING THIS SOFTWARE, YOU ACKNOWLEDGE THAT YOU HAVE READ THIS DISCLAIMER,
+UNDERSTAND IT, AND AGREE TO BE BOUND BY ITS TERMS.**
+
+If you do not agree with any part of this disclaimer, you must not use this software.
+
+## Contact and Reporting
+
+If you become aware of misuse of this tool or have questions about appropriate use,
+please report issues at: https://github.com/anthropics/claude-code/issues
+
+---
+
+**Last Updated:** January 26, 2026
+**Version:** 2.1.0

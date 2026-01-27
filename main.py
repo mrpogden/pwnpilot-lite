@@ -160,8 +160,44 @@ def select_model(provider_type: str, region: str, ollama_url: str) -> tuple:
             print(f"Invalid selection. Enter a number between 1 and {len(models)}.")
 
 
+def show_disclaimer() -> None:
+    """Display legal disclaimer and require acceptance."""
+    print("\n" + "=" * 78)
+    print("PWNPILOT LITE - LEGAL DISCLAIMER")
+    print("=" * 78)
+    print("""
+⚠️  AUTHORIZED USE ONLY ⚠️
+
+This tool is for AUTHORIZED security testing only. By using this software:
+
+• You have EXPLICIT WRITTEN AUTHORIZATION to test target systems
+• You will comply with ALL applicable laws and regulations
+• You accept FULL RESPONSIBILITY for your actions
+• You understand UNAUTHORIZED ACCESS is ILLEGAL
+
+This software is provided "AS IS" with NO WARRANTY. The authors are NOT LIABLE
+for any damages or legal consequences resulting from use or misuse.
+
+See DISCLAIMER file for complete terms.
+""")
+    print("=" * 78)
+
+    try:
+        response = input("\nDo you accept these terms? (yes/no): ").strip().lower()
+        if response not in ['yes', 'y']:
+            print("\n❌ Disclaimer not accepted. Exiting.")
+            sys.exit(0)
+        print("✅ Disclaimer accepted. Starting PwnPilot Lite...\n")
+    except KeyboardInterrupt:
+        print("\n\n❌ Disclaimer not accepted. Exiting.")
+        sys.exit(0)
+
+
 def main() -> None:
     """Main entry point."""
+    # Show disclaimer and require acceptance
+    show_disclaimer()
+
     # Load environment
     load_env()
 

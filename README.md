@@ -2,7 +2,15 @@
 
 AI-assisted penetration testing tool combining AWS Bedrock or local Ollama models with HexStrike MCP security tools.
 
-**Key Features:**
+## ⚠️ IMPORTANT DISCLAIMER
+
+**AUTHORIZED USE ONLY:** This tool is designed for authorized security testing only. You must have explicit written authorization to test any systems, networks, or applications. Unauthorized access to computer systems is illegal.
+
+**USE AT YOUR OWN RISK:** This software is provided "AS IS" without warranty. The authors are not liable for any damages or legal consequences resulting from use or misuse of this software.
+
+**See [DISCLAIMER](DISCLAIMER) file for complete terms.**
+
+## Key Features
 - 🤖 Multiple AI providers (AWS Bedrock, local Ollama)
 - 🛡️ Security-first with explicit tool approval
 - 📊 Real-time token tracking and cost monitoring
@@ -91,6 +99,8 @@ python main.py --disable-caching
 - `/summarize` - Generate AI summary and compress context (prevents context limit errors)
 - `/sessions` - List all saved sessions
 - `/load <session_id>` - Restore a previous session
+- `/paste` - Enter multi-line input mode (useful in tool mode)
+- `/prompt` - Single-line input mode (useful in guided mode where multi-line is default)
 - Type your question or request normally to interact with the AI
 
 **New in this version:** Per-session logging means each session is stored separately in `sessions/` directory for easy management and restoration.
@@ -309,6 +319,10 @@ python main.py --guided-mode
 
 ### Example Session
 
+**In Guided Mode:**
+- First prompt is single-line (ask your question)
+- After AI responds, switches to multi-line mode automatically
+
 ```
 user> scan example.com for open ports
 
@@ -319,21 +333,35 @@ Command to run: nmap -sV -sC example.com
 This will perform a service version detection scan with default scripts.
 Please run this command and paste the output.
 
-user> [paste nmap output here]
-
-Starting Nmap 7.94...
+[Paste output, type 'END' when done, or '/prompt' for single-line]> Starting Nmap 7.94...
 PORT    STATE SERVICE  VERSION
 80/tcp  open  http     Apache httpd 2.4.41
 443/tcp open  ssl/http Apache httpd 2.4.41
+END
+
+✅ Captured 4 lines (156 characters)
 
 🤖 Based on the scan results, I can see ports 80 and 443 are open...
 Let's check for web vulnerabilities:
 
 Command to run: nikto -h http://example.com
 
-user> [paste nikto output here]
+[Paste output, type 'END' when done, or '/prompt' for single-line]> [paste output]
+...
+END
+
+✅ Captured 28 lines (1,543 characters)
 
 [conversation continues...]
+```
+
+To ask a single-line question in guided mode:
+
+```
+[Paste output, type 'END' when done, or '/prompt' for single-line]> /prompt
+user> what should I scan next?
+
+🤖 Based on the findings so far...
 ```
 
 ### Benefits
@@ -545,6 +573,55 @@ python main.py --prompt-mode advanced --target example.com
 - Organization-specific methodology
 - Testing new prompt approaches
 - Research and development
+
+## Legal and Ethical Use
+
+### Authorization Requirements
+
+Before using PwnPilot Lite, ensure you have:
+
+1. **Written Authorization**: Explicit written permission from system owners
+2. **Defined Scope**: Clear boundaries for what can and cannot be tested
+3. **Legal Compliance**: Understanding of applicable laws and regulations
+4. **Engagement Letter**: For professional assessments, proper contractual agreements
+
+### Intended Use Cases
+
+This tool is intended ONLY for:
+
+- Authorized penetration testing engagements
+- Security research on systems you own or have permission to test
+- Bug bounty programs (within program rules and scope)
+- Educational purposes in controlled lab environments
+- Red team exercises as part of authorized security assessments
+
+### Prohibited Uses
+
+Do NOT use this tool for:
+
+- Unauthorized access to any system
+- Malicious hacking or criminal activity
+- Denial of service attacks
+- Data theft, destruction, or privacy violations
+- Any activity that violates laws or regulations
+
+### Responsible Disclosure
+
+If you discover vulnerabilities:
+
+1. Follow responsible disclosure practices
+2. Notify affected parties through appropriate channels
+3. Provide reasonable time for remediation before public disclosure
+4. Do not exploit vulnerabilities for personal gain
+
+### Professional Ethics
+
+Users should follow established professional ethics guidelines from organizations such as:
+
+- EC-Council Code of Ethics
+- (ISC)² Code of Ethics
+- SANS Security Professional Ethics
+- OWASP Code of Conduct
 
 ## Notes
 

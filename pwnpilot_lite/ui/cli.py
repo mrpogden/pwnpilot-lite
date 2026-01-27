@@ -117,7 +117,7 @@ class CLI:
                 print(f"🔄 Tool result caching enabled (TTL: {self.tool_cache.ttl_seconds}s)")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id>")
+            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /paste")
         else:
             # Guided mode
             if self.enable_caching and self.ai_provider.supports_caching():
@@ -126,15 +126,60 @@ class CLI:
                 print("📊 Token monitoring enabled")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id>")
-            print("\n💡 In guided mode: AI suggests commands, you run them and paste results back")
+            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /prompt")
+            print("\n💡 In guided mode:")
+            print("   - First prompt: Single-line (ask your question)")
+            print("   - After AI responds: Multi-line mode (paste output, type 'END')")
+            print("   - Use '/prompt' to switch to single-line input anytime")
 
     def run(self) -> None:
         """Run the main conversation loop."""
         while True:
-            user_input = self._prompt_user("\nuser> ").strip()
+            # In guided mode, first prompt is single-line, then multi-line for subsequent prompts
+            if not self.mcp_client:
+                # Check if this is the first interaction (no messages yet)
+                if len(self.session_manager.get_messages()) == 0:
+                    prompt_text = "\nuser> "
+                else:
+                    prompt_text = "\n[Paste output, type 'END' when done, or '/prompt' for single-line]> "
+            else:
+                prompt_text = "\nuser> "
+
+            user_input = self._prompt_user(prompt_text).strip()
             if not user_input:
                 continue
+
+            # Handle /prompt command (switch to single-line for this input)
+            if user_input.lower() == "/prompt":
+                user_input = self._prompt_user("user> ").strip()
+                if not user_input:
+                    continue
+
+            # Handle /paste command for multi-line input (useful in tool mode)
+            if user_input.lower() == "/paste":
+                user_input = self._read_multiline_input()
+                if not user_input:
+                    continue
+
+            # In guided mode (no mcp_client), if not a command and not first prompt, treat as multi-line input
+            if not self.mcp_client and not user_input.startswith("/") and len(self.session_manager.get_messages()) > 0:
+                # First line already captured, get the rest until END
+                lines = [user_input]
+                try:
+                    while True:
+                        line = input()
+                        if line.strip() == "END":
+                            break
+                        lines.append(line)
+                except KeyboardInterrupt:
+                    print("\n⚠️  Input cancelled")
+                    continue
+
+                user_input = "\n".join(lines)
+                if user_input.strip():
+                    line_count = len(lines)
+                    char_count = len(user_input)
+                    print(f"\n✅ Captured {line_count} lines ({char_count} characters)\n")
 
             # Handle exit command
             if user_input.lower() in {"/exit", "quit", "exit"}:
@@ -536,6 +581,38 @@ class CLI:
             return input(prompt)
         except KeyboardInterrupt:
             return "/exit"
+
+    def _read_multiline_input(self) -> str:
+        """
+        Read multi-line input from user.
+
+        User pastes content and types 'END' on its own line to finish.
+        Returns concatenated input as a single string.
+        """
+        print("\n📝 Multi-line input mode activated")
+        print("   Paste your content (can be multiple lines)")
+        print("   Type 'END' on a new line when finished\n")
+
+        lines = []
+        try:
+            while True:
+                line = input()
+                if line.strip() == "END":
+                    break
+                lines.append(line)
+        except KeyboardInterrupt:
+            print("\n⚠️  Multi-line input cancelled")
+            return ""
+
+        result = "\n".join(lines)
+        if result:
+            line_count = len(lines)
+            char_count = len(result)
+            print(f"\n✅ Captured {line_count} lines ({char_count} characters)\n")
+        else:
+            print("\n⚠️  No input captured\n")
+
+        return result
 
     @staticmethod
     def _extract_blocks(response: Dict[str, Any]) -> List[Dict[str, Any]]:

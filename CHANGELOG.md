@@ -5,6 +5,22 @@ All notable changes to PwnPilot Lite will be documented in this file.
 ## [2.1.0] - 2026-01-26
 
 ### Added
+- **Legal Disclaimer**: Comprehensive disclaimer system
+  - Displayed at startup requiring user acceptance
+  - Complete DISCLAIMER file with all terms
+  - Authorization and legal use requirements
+  - Liability and warranty disclaimers
+  - Ethical use and responsible disclosure guidelines
+  - Professional ethics standards
+  - Added to README.md for visibility
+- **Multi-line Input Mode**: Enhanced multi-line input handling for guided mode
+  - **First prompt is single-line**: Ask your initial question normally
+  - **Subsequent prompts auto-switch to multi-line**: Perfect for pasting command output
+  - Just paste your output and type 'END' on a new line - no command needed
+  - Use `/prompt` command to switch back to single-line input anytime
+  - **In Tool Mode**: Use `/paste` command to enter multi-line mode
+  - Solves guided mode issue where line breaks interrupted input
+  - Shows line and character count confirmation after capture
 - **Prompt System**: Flexible prompt loading system with three modes (basic, advanced, custom)
 - **Advanced Mode (Masterprompt)**: Full OODA loop security assessment methodology
   - Comprehensive OODA loop framework (Observe, Orient, Decide, Act, Validate)
