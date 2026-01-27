@@ -146,8 +146,8 @@ class TokenTracker:
         # Reset warnings so they can trigger again if context grows
         self.warnings_shown.clear()
 
-        # Mark that summarization was performed
-        self.summarization_performed = True
+        # Reset summarization flag so it can trigger again if context grows
+        self.summarization_performed = False
 
     def format_summary(self, last_request_usage: Optional[Dict[str, Any]] = None) -> str:
         """Format a summary string for display."""
