@@ -54,7 +54,31 @@ AI-assisted penetration testing tool combining AWS Bedrock or local Ollama model
 - Session logging for audit trails
 - Support for both Bedrock and local Ollama models
 
-## Setup
+## Prerequisites
+
+### HexStrike MCP Server (Required for Tool Mode)
+
+**IMPORTANT:** PwnPilot Lite requires the HexStrike MCP server for all modes EXCEPT guided mode.
+
+- **Website**: https://www.hexstrike.com
+- **GitHub**: https://github.com/0x4m4/hexstrike-ai.git
+
+**Installation:**
+
+```bash
+# Clone HexStrike
+git clone https://github.com/0x4m4/hexstrike-ai.git
+cd hexstrike-ai
+
+# Follow HexStrike installation instructions
+# (see their README for detailed setup)
+```
+
+**When is HexStrike needed?**
+- ✅ **Tool Mode (default)**: HexStrike MCP server REQUIRED
+- ❌ **Guided Mode** (`--guided-mode`): HexStrike NOT needed - AI suggests commands, you run them manually
+
+### PwnPilot Lite Setup
 
 1) Create a virtual environment (optional)
 2) Install requirements:
@@ -69,22 +93,36 @@ Optional: place credentials in `config/credentials.env` and they will be loaded 
 
 ## Run
 
-Basic usage:
+### Tool Mode (with HexStrike MCP)
+
+**Requires HexStrike MCP server running first!**
+
+Start HexStrike MCP server (in a separate terminal):
+```bash
+cd hexstrike-ai
+# Follow HexStrike's instructions to start the MCP server
+# Default runs on http://localhost:8888
+```
+
+Then run PwnPilot Lite:
 
 ```bash
+# Basic usage (connects to HexStrike at default URL)
 python main.py
+
+# Specify HexStrike MCP URL
+python main.py --mcp-url http://localhost:8888
+
+# With other options
+python main.py --region us-east-1 --disable-caching
 ```
 
-With options:
+### Guided Mode (no HexStrike needed)
+
+Run without HexStrike - AI suggests commands, you run them manually:
 
 ```bash
-python main.py --region us-east-1 --mcp-url http://localhost:8888
-```
-
-Disable caching:
-
-```bash
-python main.py --disable-caching
+python main.py --guided-mode
 ```
 
 **Note:** AWS region defaults to your configured AWS CLI region (from `~/.aws/config`)
@@ -165,7 +203,7 @@ user> /cache
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--region` | AWS CLI config | AWS region for Bedrock (auto-detected from `~/.aws/config`) |
-| `--mcp-url` | http://localhost:8888 | HexStrike MCP server URL |
+| `--mcp-url` | http://localhost:8888 | HexStrike MCP server URL (not used in guided mode) |
 | `--ollama-url` | http://localhost:11434 | Ollama server URL |
 | `--max-tokens` | 4096 | Maximum tokens per response |
 | `--session-log` | session.log | Path to session log file |
@@ -302,14 +340,21 @@ python pwnpilot_lite.py --tool-cache-ttl 600
 
 ## Guided Mode
 
-Guided mode allows you to use PwnPilot Lite without HexStrike MCP server. Perfect for environments where you can't run MCP or prefer manual control.
+Guided mode allows you to use PwnPilot Lite **without HexStrike MCP server**. Perfect for environments where you can't run MCP or prefer manual control.
 
 ### How It Works
 
-1. **No MCP Required**: AI suggests commands but doesn't execute them
+1. **No HexStrike Required**: AI suggests commands but doesn't execute them (no MCP server needed)
 2. **You Run Commands**: Copy suggested commands and run them in your terminal
 3. **Paste Results**: Paste command output back to the AI
 4. **AI Analysis**: AI analyzes results and suggests next steps
+
+### Why Use Guided Mode?
+
+- **No HexStrike Installation**: Don't need to install or run HexStrike MCP server
+- **No Infrastructure**: Works with just Python and AI provider (Bedrock/Ollama)
+- **Full Control**: You approve and run every command manually
+- **Flexible Environment**: Run commands anywhere you have access
 
 ### Enable Guided Mode
 
@@ -366,18 +411,22 @@ user> what should I scan next?
 
 ### Benefits
 
-- **No Infrastructure**: No need to set up HexStrike MCP server
+- **No HexStrike Required**: Skip the HexStrike MCP server installation entirely
+- **No Infrastructure**: No additional services to run or maintain
 - **Full Control**: You approve and run every command manually
 - **Flexible Environment**: Run commands anywhere you have access
 - **Learning Tool**: See exactly what commands are being used
+- **Lightweight**: Just Python, AI provider, and your security tools
 
 ### When to Use Guided Mode
 
+- **No HexStrike available**: Don't want to install HexStrike MCP server
 - Testing PwnPilot Lite without full setup
 - Environments where MCP can't be deployed
 - Learning security testing techniques
 - Maximum control over command execution
 - Limited tool availability on target system
+- Quick assessments without infrastructure setup
 
 ## Prompt Modes
 
