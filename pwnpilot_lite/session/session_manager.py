@@ -143,6 +143,9 @@ class SessionManager:
         self._cleanup_incomplete_tool_requests()
         messages_after_cleanup = len(self.messages)
 
+        # Check if restored session exceeds safe context limits
+        self._check_and_truncate_restored_context()
+
         # Debug info
         if messages_before_cleanup != messages_after_cleanup:
             print(f"   Restored {messages_before_cleanup} messages, kept {messages_after_cleanup} after cleanup")
@@ -211,6 +214,60 @@ class SessionManager:
 
             # Last message looks valid - stop cleanup
             break
+
+    def _check_and_truncate_restored_context(self) -> None:
+        """
+        Check if restored session context is too large and truncate if needed.
+
+        This prevents ValidationException when restoring very long sessions.
+        Uses a heuristic of ~4 chars per token and keeps messages under a safe limit.
+        """
+        if not self.messages:
+            return
+
+        # Estimate token count (rough heuristic: 4 chars per token)
+        # Account for system prompt + tools (~30k-50k tokens) by being conservative
+        MAX_SAFE_MESSAGE_TOKENS = 100000  # Leave room for system prompt + tools
+
+        total_chars = 0
+        for msg in self.messages:
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                total_chars += len(content)
+            elif isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict):
+                        # Count text blocks
+                        if block.get("type") == "text":
+                            total_chars += len(block.get("text", ""))
+                        # Count tool content
+                        elif block.get("type") in ["tool_use", "tool_result"]:
+                            total_chars += len(json.dumps(block))
+
+        estimated_tokens = total_chars // 4
+
+        if estimated_tokens > MAX_SAFE_MESSAGE_TOKENS:
+            # Context is too large - keep only recent messages
+            print(f"\n⚠️  Restored session is very large (est. {estimated_tokens:,} tokens)")
+            print(f"   Truncating to recent messages to prevent context overflow...")
+
+            # Keep last 30 messages (should be well under limits)
+            keep_recent = 30
+            if len(self.messages) > keep_recent:
+                old_count = len(self.messages)
+
+                # Create a truncation notice
+                truncation_notice = {
+                    "role": "user",
+                    "content": f"[SESSION RESTORED - Older messages truncated to fit context limits. Showing last {keep_recent} messages of {old_count} total. Use /summarize if you need context compression.]"
+                }
+
+                # Keep only recent messages
+                self.messages = [truncation_notice] + self.messages[-keep_recent:]
+                new_count = len(self.messages)
+
+                print(f"   Truncated: {old_count} messages → {new_count} messages")
+                print(f"   Kept most recent {keep_recent} messages\n")
 
     def append_log(self, entry: Dict[str, Any]) -> None:
         """Append an entry to the session log."""

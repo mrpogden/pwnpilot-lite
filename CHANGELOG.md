@@ -4,6 +4,16 @@ All notable changes to PwnPilot Lite will be documented in this file.
 
 ## [2.1.0] - 2026-01-26
 
+### Fixed
+- **Session Restoration Context Overflow**: Fixed ValidationException when restoring very long sessions
+  - Automatically truncates old messages if restored context exceeds safe limits
+  - Keeps last 30 messages when truncation is needed
+  - Estimates token usage before sending to model to prevent overflow
+  - Adds truncation notice to inform user of what was removed
+- **Auto-Summarization Bug**: Fixed issue where auto-summarization only worked once per session
+  - Corrected `summarization_performed` flag reset in token_tracker.py
+  - Auto-summarization now triggers repeatedly throughout long sessions
+
 ### Added
 - **Legal Disclaimer**: Comprehensive disclaimer system
   - Displayed at startup requiring user acceptance
