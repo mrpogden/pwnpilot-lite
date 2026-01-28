@@ -117,7 +117,7 @@ class CLI:
                 print(f"🔄 Tool result caching enabled (TTL: {self.tool_cache.ttl_seconds}s)")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /paste")
+            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /summary | /paste")
         else:
             # Guided mode
             if self.enable_caching and self.ai_provider.supports_caching():
@@ -126,7 +126,7 @@ class CLI:
                 print("📊 Token monitoring enabled")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /prompt")
+            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /summary | /prompt")
             print("\n💡 In guided mode:")
             print("   - First prompt: Single-line (ask your question)")
             print("   - After AI responds: Multi-line mode (paste output, type 'END')")
@@ -213,6 +213,11 @@ class CLI:
             # Handle /load command
             if user_input.lower().startswith("/load"):
                 self._handle_load_command(user_input)
+                continue
+
+            # Handle /summary command
+            if user_input.lower() == "/summary":
+                self._handle_summary_command()
                 continue
 
             # Add user message to conversation
@@ -434,6 +439,10 @@ class CLI:
             self.token_tracker = TokenTracker(model_id)
 
         print(f"\n✅ Session '{session_id}' loaded with {len(self.session_manager.get_messages())} messages.\n")
+
+    def _handle_summary_command(self) -> None:
+        """Handle /summary command."""
+        print("\n" + self.session_manager.format_summary_display() + "\n")
 
     def _show_progressive_warnings(self) -> None:
         """Show progressive context warnings."""

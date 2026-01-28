@@ -601,6 +601,135 @@ python main.py --prompt-mode advanced --target example.com
 # Target and Knowledge Graph automatically restored from session
 ```
 
+## Session Intelligence Summary
+
+PwnPilot Lite automatically tracks key findings in a separate summary file for each session, making it easy to quickly reference what was discovered without reading through the entire conversation.
+
+### Features
+
+Each session maintains a structured summary that tracks:
+
+- **Target**: The primary target of the security assessment
+- **Reconnaissance Data**: Open ports, services, subdomains, IP addresses, technologies
+- **Credentials**: Usernames, passwords, API keys, and other credentials discovered
+- **Files Discovered**: Accessible files, backups, configs, and their locations
+- **Vulnerabilities**: Security issues found with severity ratings and locations
+- **Tools Attempted**: History of which tools were used and their results
+- **Notes**: Timestamped freeform notes for context and observations
+
+### Storage
+
+- Summary saved to: `sessions/{session_id}_summary.json`
+- Human-readable JSON format for easy parsing
+- Auto-saves on every update
+- Automatically restored when loading previous sessions
+- Separate from conversation log for efficient access
+
+### Viewing Summary
+
+Use the `/summary` command to view the current session's intelligence summary:
+
+```bash
+user> /summary
+
+======================================================================
+SESSION INTELLIGENCE SUMMARY - 20260128142530
+======================================================================
+
+🎯 Target: example.com
+
+📡 Reconnaissance:
+   IP Addresses: 93.184.216.34
+   Open Ports: 22, 80, 443
+   Services: OpenSSH 8.2, Apache httpd 2.4.41, nginx/1.18.0
+   Subdomains: www.example.com, api.example.com, dev.example.com, admin.example.com, mail.example.com
+      ... and 12 more
+   Technologies: Apache, PHP 7.4, MySQL, Redis
+
+🔑 Credentials Found: 2 item(s)
+   - API Key: xk-abc123def456
+   - Username: admin (found in robots.txt)
+
+📁 Files Discovered: 3 item(s)
+   - /backup.sql
+   - /config.php.bak
+   - /.git/config
+
+🔓 Vulnerabilities: 2 found
+   - [HIGH] SQL Injection at /search.php?q=
+   - [MEDIUM] Directory Listing at /uploads/
+
+🔧 Tools Attempted: 15
+   ✅ nmap - success
+   ✅ subfinder - success
+   ✅ nikto - success
+   ❌ sqlmap - no_findings
+   ✅ dirb - success
+
+📝 Notes: 3
+   • Target appears to be using CloudFlare
+   • Rate limiting detected after 10 requests
+   • Development subdomain has different security controls
+
+📅 Last Updated: 2026-01-28T14:32:15Z
+======================================================================
+```
+
+### Programmatic API
+
+SessionManager provides methods for updating the summary:
+
+```python
+# Add reconnaissance findings
+session_manager.add_finding("open_ports", 443)
+session_manager.add_finding("services", "Apache httpd 2.4.41")
+session_manager.add_finding("subdomains", "api.example.com")
+session_manager.add_finding("ip_addresses", "93.184.216.34")
+session_manager.add_finding("technologies", "PHP 7.4")
+
+# Add credentials
+session_manager.add_finding("credentials", {
+    "type": "API Key",
+    "value": "xk-abc123def456",
+    "location": "Found in .env file"
+})
+
+# Add discovered files
+session_manager.add_finding("files_discovered", {
+    "path": "/backup.sql",
+    "type": "database",
+    "accessible": True
+})
+
+# Add vulnerabilities
+session_manager.add_finding("vulnerabilities", {
+    "type": "SQL Injection",
+    "location": "/search.php?q=",
+    "severity": "high",
+    "confidence": "confirmed"
+})
+
+# Log tool attempts
+session_manager.add_tool_attempt(
+    tool="nmap",
+    command="nmap -sV -sC example.com",
+    result="success",
+    details="Found 3 open ports"
+)
+
+# Add contextual notes
+session_manager.add_note("Target appears to be using CloudFlare")
+```
+
+### Benefits
+
+- **Quick Reference**: View key findings without reading entire session
+- **Resume Context**: Quickly understand what was done when resuming work
+- **Report Generation**: Structured data ready for reports
+- **Progress Tracking**: See what's been tried and what findings exist
+- **Collaboration**: Share summary with team members
+- **Audit Trail**: Maintain clear record of discoveries
+
 ### Best Practices
 
 **Use Basic Mode When:**

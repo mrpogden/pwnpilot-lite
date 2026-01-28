@@ -36,12 +36,15 @@ class SessionManager:
             self.session_id = time.strftime("%Y%m%d%H%M%S")
 
         self.session_file = self.sessions_dir / f"{self.session_id}.jsonl"
+        self.summary_file = self.sessions_dir / f"{self.session_id}_summary.json"
         self.messages: List[Dict[str, Any]] = []
         self.metadata: Dict[str, Any] = {}
+        self.session_summary: Dict[str, Any] = self._initialize_summary()
 
         if restore and self.session_file.exists():
             # Restore existing session
             self._restore_session()
+            self._load_summary()
             print(f"📂 Restored session: {self.session_id}")
         else:
             # Create new session
@@ -52,6 +55,7 @@ class SessionManager:
                 "model_id": None,
             }
             self.append_log({"type": "session_start", "session_id": self.session_id})
+            self._save_summary()
 
     def _restore_session(self) -> None:
         """Restore session from existing file."""
@@ -362,6 +366,7 @@ class SessionManager:
             target: Target domain, IP, or organization name
         """
         self.metadata["target"] = target
+        self.update_summary_target(target)
         self.append_log({
             "type": "target_set",
             "target": target
@@ -397,6 +402,198 @@ class SessionManager:
             Knowledge graph dictionary or empty dict if not set
         """
         return self.metadata.get("knowledge_graph", {})
+
+    def _initialize_summary(self) -> Dict[str, Any]:
+        """Initialize empty session summary structure."""
+        return {
+            "session_id": getattr(self, 'session_id', None),
+            "target": None,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "reconnaissance": {
+                "open_ports": [],
+                "services": [],
+                "subdomains": [],
+                "ip_addresses": [],
+                "technologies": []
+            },
+            "credentials": [],
+            "files_discovered": [],
+            "vulnerabilities": [],
+            "tools_attempted": [],
+            "notes": []
+        }
+
+    def _load_summary(self) -> None:
+        """Load session summary from file if it exists."""
+        if self.summary_file.exists():
+            try:
+                with open(self.summary_file, "r", encoding="utf-8") as f:
+                    loaded_summary = json.load(f)
+                    # Merge loaded summary with initialized structure to handle schema changes
+                    self.session_summary.update(loaded_summary)
+            except Exception as e:
+                print(f"⚠️  Could not load session summary: {e}")
+                # Keep initialized empty summary
+
+    def _save_summary(self) -> None:
+        """Save session summary to file."""
+        self.session_summary["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        try:
+            with open(self.summary_file, "w", encoding="utf-8") as f:
+                json.dump(self.session_summary, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"⚠️  Could not save session summary: {e}")
+
+    def add_finding(self, category: str, item: Any, deduplicate: bool = True) -> None:
+        """
+        Add a finding to the session summary.
+
+        Args:
+            category: Category name (must match keys in reconnaissance dict or top-level keys)
+            item: Item to add (can be string, dict, etc.)
+            deduplicate: If True, avoid adding duplicates
+        """
+        if category in self.session_summary.get("reconnaissance", {}):
+            target_list = self.session_summary["reconnaissance"][category]
+        elif category in self.session_summary:
+            target_list = self.session_summary[category]
+        else:
+            # Create new category if it doesn't exist
+            self.session_summary[category] = []
+            target_list = self.session_summary[category]
+
+        # Add item if not duplicate or deduplication is disabled
+        if not deduplicate or item not in target_list:
+            target_list.append(item)
+            self._save_summary()
+
+    def add_note(self, note: str) -> None:
+        """Add a note to the session summary."""
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        self.session_summary["notes"].append({
+            "timestamp": timestamp,
+            "note": note
+        })
+        self._save_summary()
+
+    def add_tool_attempt(self, tool: str, command: str = "", result: str = "success", details: str = "") -> None:
+        """
+        Log a tool attempt in the session summary.
+
+        Args:
+            tool: Tool name
+            command: Command executed (optional)
+            result: Result status (success, failed, no_findings, etc.)
+            details: Additional details
+        """
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+        self.session_summary["tools_attempted"].append({
+            "timestamp": timestamp,
+            "tool": tool,
+            "command": command,
+            "result": result,
+            "details": details
+        })
+        self._save_summary()
+
+    def update_summary_target(self, target: str) -> None:
+        """Update the target in the session summary."""
+        self.session_summary["target"] = target
+        self._save_summary()
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get the current session summary."""
+        return self.session_summary
+
+    def format_summary_display(self) -> str:
+        """Format session summary for display."""
+        summary = self.session_summary
+        lines = []
+
+        lines.append("=" * 70)
+        lines.append(f"SESSION INTELLIGENCE SUMMARY - {summary['session_id']}")
+        lines.append("=" * 70)
+
+        # Target
+        if summary.get("target"):
+            lines.append(f"\n🎯 Target: {summary['target']}")
+
+        # Reconnaissance
+        recon = summary.get("reconnaissance", {})
+        if any(recon.values()):
+            lines.append("\n📡 Reconnaissance:")
+            if recon.get("ip_addresses"):
+                lines.append(f"   IP Addresses: {', '.join(recon['ip_addresses'])}")
+            if recon.get("open_ports"):
+                lines.append(f"   Open Ports: {', '.join(map(str, recon['open_ports']))}")
+            if recon.get("services"):
+                lines.append(f"   Services: {', '.join(recon['services'])}")
+            if recon.get("subdomains"):
+                lines.append(f"   Subdomains: {', '.join(recon['subdomains'][:5])}")
+                if len(recon['subdomains']) > 5:
+                    lines.append(f"      ... and {len(recon['subdomains']) - 5} more")
+            if recon.get("technologies"):
+                lines.append(f"   Technologies: {', '.join(recon['technologies'])}")
+
+        # Credentials
+        if summary.get("credentials"):
+            lines.append(f"\n🔑 Credentials Found: {len(summary['credentials'])} item(s)")
+            for cred in summary['credentials'][:3]:
+                if isinstance(cred, dict):
+                    lines.append(f"   - {cred.get('type', 'Unknown')}: {cred.get('value', '')}")
+                else:
+                    lines.append(f"   - {cred}")
+            if len(summary['credentials']) > 3:
+                lines.append(f"   ... and {len(summary['credentials']) - 3} more")
+
+        # Files
+        if summary.get("files_discovered"):
+            lines.append(f"\n📁 Files Discovered: {len(summary['files_discovered'])} item(s)")
+            for file_item in summary['files_discovered'][:3]:
+                if isinstance(file_item, dict):
+                    lines.append(f"   - {file_item.get('path', '')}")
+                else:
+                    lines.append(f"   - {file_item}")
+            if len(summary['files_discovered']) > 3:
+                lines.append(f"   ... and {len(summary['files_discovered']) - 3} more")
+
+        # Vulnerabilities
+        if summary.get("vulnerabilities"):
+            lines.append(f"\n🔓 Vulnerabilities: {len(summary['vulnerabilities'])} found")
+            for vuln in summary['vulnerabilities'][:3]:
+                if isinstance(vuln, dict):
+                    severity = vuln.get('severity', 'unknown')
+                    vuln_type = vuln.get('type', 'Unknown')
+                    location = vuln.get('location', '')
+                    lines.append(f"   - [{severity.upper()}] {vuln_type} at {location}")
+                else:
+                    lines.append(f"   - {vuln}")
+            if len(summary['vulnerabilities']) > 3:
+                lines.append(f"   ... and {len(summary['vulnerabilities']) - 3} more")
+
+        # Tools attempted
+        if summary.get("tools_attempted"):
+            lines.append(f"\n🔧 Tools Attempted: {len(summary['tools_attempted'])}")
+            recent_tools = summary['tools_attempted'][-5:]
+            for tool_log in recent_tools:
+                if isinstance(tool_log, dict):
+                    result_icon = "✅" if tool_log.get('result') == 'success' else "❌"
+                    lines.append(f"   {result_icon} {tool_log.get('tool', 'Unknown')} - {tool_log.get('result', '')}")
+
+        # Notes
+        if summary.get("notes"):
+            lines.append(f"\n📝 Notes: {len(summary['notes'])}")
+            for note in summary['notes'][-3:]:
+                if isinstance(note, dict):
+                    lines.append(f"   • {note.get('note', '')}")
+                else:
+                    lines.append(f"   • {note}")
+
+        lines.append(f"\n📅 Last Updated: {summary.get('last_updated', 'Unknown')}")
+        lines.append("=" * 70)
+
+        return "\n".join(lines)
 
     @staticmethod
     def list_sessions(sessions_dir: str = "sessions") -> List[Dict[str, Any]]:
@@ -448,7 +645,7 @@ class SessionManager:
     @staticmethod
     def delete_session(session_id: str, sessions_dir: str = "sessions") -> bool:
         """
-        Delete a session file.
+        Delete a session file and its summary.
 
         Args:
             session_id: Session ID to delete
@@ -458,10 +655,18 @@ class SessionManager:
             True if deleted, False otherwise
         """
         session_file = Path(sessions_dir) / f"{session_id}.jsonl"
+        summary_file = Path(sessions_dir) / f"{session_id}_summary.json"
+
+        deleted = False
         if session_file.exists():
             session_file.unlink()
-            return True
-        return False
+            deleted = True
+
+        # Also delete summary file if it exists
+        if summary_file.exists():
+            summary_file.unlink()
+
+        return deleted
 
     @staticmethod
     def strip_user_input_token(blocks: List[Dict[str, Any]]) -> tuple:

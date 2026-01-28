@@ -15,6 +15,17 @@ All notable changes to PwnPilot Lite will be documented in this file.
   - Auto-summarization now triggers repeatedly throughout long sessions
 
 ### Added
+- **Session Intelligence Summary**: Automatic tracking of key findings in separate summary file
+  - Tracks reconnaissance data (open ports, services, subdomains, IPs, technologies)
+  - Records credentials found during assessment
+  - Logs discovered files and their accessibility
+  - Documents vulnerabilities with severity and location
+  - Maintains history of tools attempted with results
+  - Supports freeform notes with timestamps
+  - Auto-saves to `{session_id}_summary.json` in sessions directory
+  - Restored automatically when loading previous sessions
+  - Display with `/summary` command for quick reference
+  - Programmatic API: `add_finding()`, `add_note()`, `add_tool_attempt()`
 - **Legal Disclaimer**: Comprehensive disclaimer system
   - Displayed at startup requiring user acceptance
   - Complete DISCLAIMER file with all terms
