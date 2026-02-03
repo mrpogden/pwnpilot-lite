@@ -117,7 +117,7 @@ class CLI:
                 print(f"🔄 Tool result caching enabled (TTL: {self.tool_cache.ttl_seconds}s)")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /summary | /paste")
+            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /summary | /paste | /guided")
         else:
             # Guided mode
             if self.enable_caching and self.ai_provider.supports_caching():
@@ -126,7 +126,7 @@ class CLI:
                 print("📊 Token monitoring enabled")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /summary | /prompt")
+            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /summary | /prompt | /tools")
             print("\n💡 In guided mode:")
             print("   - First prompt: Single-line (ask your question)")
             print("   - After AI responds: Multi-line mode (paste output, type 'END')")
@@ -213,6 +213,16 @@ class CLI:
             # Handle /load command
             if user_input.lower().startswith("/load"):
                 self._handle_load_command(user_input)
+                continue
+
+            # Handle /guided command - switch to guided mode
+            if user_input.lower() == "/guided":
+                self._handle_guided_command()
+                continue
+
+            # Handle /tools command - switch to tools mode
+            if user_input.lower() == "/tools":
+                self._handle_tools_command()
                 continue
 
             # Handle /summary command
@@ -443,6 +453,122 @@ class CLI:
     def _handle_summary_command(self) -> None:
         """Handle /summary command."""
         print("\n" + self.session_manager.format_summary_display() + "\n")
+
+    def _handle_guided_command(self) -> None:
+        """Handle /guided command - switch to guided mode."""
+        if not self.mcp_client:
+            print("\n⚠️  Already in guided mode.\n")
+            return
+
+        # Confirm switch
+        print("\n🔀 Switch to Guided Mode?")
+        print("   In guided mode:")
+        print("   • AI suggests commands for you to run manually")
+        print("   • No automatic tool execution")
+        print("   • You paste command outputs back to AI")
+        print("   • Use '/tools' to switch back to tools mode")
+        confirm = self._prompt_user("\nSwitch to guided mode? [y/N]: ").strip().lower()
+
+        if confirm != "y":
+            print("\n⏸️  Mode switch cancelled.\n")
+            return
+
+        # Switch to guided mode
+        self.guided_mode = True
+        self.tools = []
+        self.tool_name_set = set()
+
+        # Reload system prompt for guided mode
+        from pwnpilot_lite.prompts.prompt_loader import PromptLoader
+        from pwnpilot_lite.prompts.template_engine import TemplateEngine
+
+        prompt_loader = PromptLoader()
+        template_engine = TemplateEngine()
+
+        variables = {
+            "target": self.session_manager.metadata.get("target", "[not set]"),
+            "knowledge_graph": self.session_manager.metadata.get("knowledge_graph", {}),
+        }
+
+        self.system_prompt = prompt_loader.load_prompt(
+            mode=self.prompt_mode,
+            guided_mode=True,
+            custom_file=self.prompt_file,
+            variables=variables
+        )
+
+        # Log mode switch
+        self.session_manager.append_log({
+            "type": "mode_switch",
+            "from_mode": "tools",
+            "to_mode": "guided"
+        })
+
+        print("\n✅ Switched to Guided Mode")
+        print("   AI will now suggest commands for you to run manually")
+        print("   Use '/tools' to switch back to tools mode\n")
+
+    def _handle_tools_command(self) -> None:
+        """Handle /tools command - switch to tools mode."""
+        if self.mcp_client is None:
+            print("\n❌ Tools mode not available - MCP client not initialized")
+            print("   Restart with MCP server enabled to use tools mode\n")
+            return
+
+        if not self.guided_mode:
+            print("\n⚠️  Already in tools mode.\n")
+            return
+
+        # Confirm switch
+        print("\n🔀 Switch to Tools Mode?")
+        print("   In tools mode:")
+        print("   • AI can execute security tools automatically")
+        print("   • You approve each command before execution")
+        print("   • Results are automatically sent back to AI")
+        print("   • Use '/guided' to switch back to guided mode")
+        confirm = self._prompt_user("\nSwitch to tools mode? [y/N]: ").strip().lower()
+
+        if confirm != "y":
+            print("\n⏸️  Mode switch cancelled.\n")
+            return
+
+        # Switch to tools mode
+        self.guided_mode = False
+
+        # Re-fetch tools from MCP
+        print("\n⏳ Fetching tools from MCP server...")
+        self.tools = self.mcp_client.fetch_tools(timeout=self.mcp_timeout)
+        self.tool_name_set = {tool.get("name") for tool in self.tools if tool.get("name")}
+
+        # Reload system prompt for tools mode
+        from pwnpilot_lite.prompts.prompt_loader import PromptLoader
+        from pwnpilot_lite.prompts.template_engine import TemplateEngine
+
+        prompt_loader = PromptLoader()
+        template_engine = TemplateEngine()
+
+        variables = {
+            "target": self.session_manager.metadata.get("target", "[not set]"),
+            "knowledge_graph": self.session_manager.metadata.get("knowledge_graph", {}),
+        }
+
+        self.system_prompt = prompt_loader.load_prompt(
+            mode=self.prompt_mode,
+            guided_mode=False,
+            custom_file=self.prompt_file,
+            variables=variables
+        )
+
+        # Log mode switch
+        self.session_manager.append_log({
+            "type": "mode_switch",
+            "from_mode": "guided",
+            "to_mode": "tools"
+        })
+
+        print(f"\n✅ Switched to Tools Mode ({len(self.tools)} tools available)")
+        print("   AI can now execute tools with your approval")
+        print("   Use '/guided' to switch back to guided mode\n")
 
     def _show_progressive_warnings(self) -> None:
         """Show progressive context warnings."""

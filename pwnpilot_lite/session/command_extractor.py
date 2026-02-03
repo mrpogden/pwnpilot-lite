@@ -87,6 +87,16 @@ class CommandExtractor:
                         }
                         commands.append(command_record)
 
+                    # Capture mode switches for audit trail
+                    elif entry_type == "mode_switch":
+                        command_record = {
+                            "timestamp": entry.get("timestamp"),
+                            "status": "MODE_SWITCH",
+                            "from_mode": entry.get("from_mode"),
+                            "to_mode": entry.get("to_mode"),
+                        }
+                        commands.append(command_record)
+
                 except json.JSONDecodeError:
                     continue
 
@@ -134,10 +144,22 @@ class CommandExtractor:
 
         for idx, cmd in enumerate(commands, 1):
             timestamp = cmd.get("timestamp", "Unknown")
+
+            lines.append(f"[{idx}] {timestamp}")
+
+            # Handle mode switches
+            if cmd.get("status") == "MODE_SWITCH":
+                from_mode = cmd.get("from_mode", "unknown")
+                to_mode = cmd.get("to_mode", "unknown")
+                lines.append(f"    Mode Switch: {from_mode} → {to_mode}")
+                lines.append("    🔀 Operator changed session mode")
+                lines.append("")
+                continue
+
+            # Handle regular commands
             tool_name = cmd.get("tool_name", "unknown")
             command = cmd.get("command", "")
 
-            lines.append(f"[{idx}] {timestamp}")
             lines.append(f"    Tool: {tool_name}")
             lines.append(f"    Command: {command}")
 
@@ -202,6 +224,15 @@ class CommandExtractor:
 
         for cmd in commands:
             timestamp = cmd.get("timestamp", "")
+
+            # Handle mode switches
+            if cmd.get("status") == "MODE_SWITCH":
+                from_mode = cmd.get("from_mode", "")
+                to_mode = cmd.get("to_mode", "")
+                lines.append(f'"{timestamp}","MODE_SWITCH","Mode: {from_mode} → {to_mode}","MODE_SWITCH",False,False')
+                continue
+
+            # Handle regular commands
             tool_name = cmd.get("tool_name", "")
             command = cmd.get("command", "").replace('"', '""')  # Escape quotes
             status = "DENIED" if cmd.get("status") == "DENIED" else "EXECUTED"
@@ -230,6 +261,15 @@ class CommandExtractor:
         lines.append("")
 
         for idx, cmd in enumerate(commands, 1):
+            # Handle mode switches
+            if cmd.get("status") == "MODE_SWITCH":
+                timestamp = cmd.get("timestamp", "")
+                from_mode = cmd.get("from_mode", "")
+                to_mode = cmd.get("to_mode", "")
+                lines.append(f"# [{idx}] {timestamp} - Mode Switch: {from_mode} → {to_mode}")
+                lines.append("")
+                continue
+
             # Skip denied or failed commands if only_successful
             if only_successful:
                 if cmd.get("status") == "DENIED" or not cmd.get("success"):
