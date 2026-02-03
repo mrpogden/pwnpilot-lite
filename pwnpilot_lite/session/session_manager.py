@@ -145,6 +145,10 @@ class SessionManager:
         # Validate and clean up incomplete tool requests
         messages_before_cleanup = len(self.messages)
         self._cleanup_incomplete_tool_requests()
+
+        # Merge consecutive user messages (API requirement)
+        self._merge_consecutive_user_messages()
+
         messages_after_cleanup = len(self.messages)
 
         # Check if restored session exceeds safe context limits
@@ -153,6 +157,64 @@ class SessionManager:
         # Debug info
         if messages_before_cleanup != messages_after_cleanup:
             print(f"   Restored {messages_before_cleanup} messages, kept {messages_after_cleanup} after cleanup")
+
+    def _merge_consecutive_user_messages(self) -> None:
+        """
+        Merge consecutive user messages into single messages.
+
+        Claude API requires alternating roles (user/assistant). This can happen
+        when a user submits a new message right after a tool result.
+        """
+        if not self.messages:
+            return
+
+        merged_messages = []
+        i = 0
+
+        while i < len(self.messages):
+            current = self.messages[i]
+
+            # If current is a user message, check for consecutive user messages
+            if current.get("role") == "user":
+                # Collect all consecutive user messages
+                consecutive_user_messages = [current]
+                j = i + 1
+
+                while j < len(self.messages) and self.messages[j].get("role") == "user":
+                    consecutive_user_messages.append(self.messages[j])
+                    j += 1
+
+                # If we found consecutive user messages, merge them
+                if len(consecutive_user_messages) > 1:
+                    merged_content = []
+
+                    for msg in consecutive_user_messages:
+                        content = msg.get("content")
+                        if isinstance(content, str):
+                            # Convert string content to text block
+                            merged_content.append({"type": "text", "text": content})
+                        elif isinstance(content, list):
+                            # Add all blocks
+                            merged_content.extend(content)
+
+                    # Create merged message
+                    merged_messages.append({
+                        "role": "user",
+                        "content": merged_content
+                    })
+
+                    print(f"⚠️  Merged {len(consecutive_user_messages)} consecutive user messages")
+                    i = j  # Skip past all merged messages
+                else:
+                    # Single user message, keep as is
+                    merged_messages.append(current)
+                    i += 1
+            else:
+                # Non-user message, keep as is
+                merged_messages.append(current)
+                i += 1
+
+        self.messages = merged_messages
 
     def _cleanup_incomplete_tool_requests(self) -> None:
         """
