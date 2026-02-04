@@ -130,17 +130,25 @@ class TokenTracker:
         usage = self.get_context_usage()
         return usage >= 85.0 and not self.summarization_performed
 
-    def reset_context_tracking(self) -> None:
+    def reset_context_tracking(self, messages_after_compression: int = 7) -> None:
         """
         Reset context tracking after summarization.
 
         This resets the input/output token totals to reflect reduced context,
         while preserving cache token counts (which are request-specific).
         The context is estimated based on summary + recent messages.
+
+        Args:
+            messages_after_compression: Number of messages after compression (summary + recent)
         """
         # Reset cumulative context tokens (not cache tokens)
-        # Keep a small baseline for summary + recent messages (estimate ~2000 tokens)
-        self.total_input_tokens = 2000
+        # Estimate context size after compression:
+        # - Summary message: ~1500 tokens (conservative estimate)
+        # - Each remaining message: ~1500 tokens average (including tool results)
+        # - This is a rough estimate but much better than hardcoded 2000
+        estimated_tokens = 1500 + (messages_after_compression * 1500)
+
+        self.total_input_tokens = estimated_tokens
         self.total_output_tokens = 0
 
         # Reset warnings so they can trigger again if context grows

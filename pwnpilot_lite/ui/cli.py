@@ -357,9 +357,9 @@ class CLI:
                 self.session_manager.compress_context(summary, keep_recent=6)
                 new_count = len(self.session_manager.get_messages())
 
-                # Reset context tracking
+                # Reset context tracking with accurate message count
                 if self.token_tracker:
-                    self.token_tracker.reset_context_tracking()
+                    self.token_tracker.reset_context_tracking(messages_after_compression=new_count)
 
                 # Log the summarization
                 self.session_manager.append_log({
@@ -618,8 +618,8 @@ class CLI:
                 self.session_manager.compress_context(summary, keep_recent=6)
                 new_count = len(self.session_manager.get_messages())
 
-                # Reset context tracking
-                self.token_tracker.reset_context_tracking()
+                # Reset context tracking with accurate message count
+                self.token_tracker.reset_context_tracking(messages_after_compression=new_count)
 
                 print(f"\n✅ Context auto-compressed: {old_count} messages → {new_count} messages")
                 usage = self.token_tracker.get_context_usage()
