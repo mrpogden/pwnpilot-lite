@@ -19,6 +19,7 @@ AI-assisted penetration testing tool combining AWS Bedrock or local Ollama model
 - 📁 Per-session logging with restoration capability
 - 🧭 Guided mode for manual command execution (no MCP needed)
 - 🔀 Switch between Tools and Guided modes during sessions
+- 🚀 **Autonomous mode** - AI-driven continuous operation with safety controls
 - 🎯 Modular architecture for easy extension
 
 ## Features
@@ -139,12 +140,16 @@ python main.py --guided-mode
 - `/sessions` - List all saved sessions
 - `/load <session_id>` - Restore a previous session
 - `/paste` - Enter multi-line input mode (useful in tool mode)
-- `/prompt` - Single-line input mode (useful in guided mode where multi-line is default)
+- `/prompt` - Single-line input mode (guided mode) OR exit autonomous mode
 - `/guided` - Switch to guided mode (AI suggests commands, you run manually)
 - `/tools` - Switch to tools mode (AI executes commands with approval)
+- `/autonomous` - Enter autonomous mode (AI operates continuously toward objective)
+- `/scope` - Manage scope for autonomous mode (add/remove/show targets)
 - Type your question or request normally to interact with the AI
 
-**Mode Switching:** You can now switch between Tools Mode and Guided Mode during an active session. See [MODE_SWITCHING.md](MODE_SWITCHING.md) for detailed documentation.
+**Mode Switching:** You can switch between Tools Mode and Guided Mode during an active session. See [MODE_SWITCHING.md](MODE_SWITCHING.md) for detailed documentation.
+
+**Autonomous Mode:** Enable AI-driven continuous operation with safety controls. See [AUTONOMOUS_MODE.md](AUTONOMOUS_MODE.md) for complete guide.
 
 **New in this version:** Per-session logging means each session is stored separately in `sessions/` directory for easy management and restoration.
 

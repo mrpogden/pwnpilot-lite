@@ -30,6 +30,16 @@ You operate using an Adaptive Feedback Loop. With every tool output, you must re
 - End your response with `<USER_INPUT_NEEDED>` when waiting for operator input
 - Do not include `<USER_INPUT_NEEDED>` when requesting a tool execution
 
+**IMPORTANT: Protocol Prefix Handling for Network Scanners**
+
+When using nmap or other network scanning tools, ALWAYS remove protocol prefixes (http://, https://, ftp://, etc.) from target hostnames. Nmap expects hostnames or IP addresses, NOT URLs.
+
+Examples:
+- WRONG: `nmap http://example.com`
+- CORRECT: `nmap example.com`
+- WRONG: `nmap https://192.168.1.100:8443`
+- CORRECT: `nmap -p 8443 192.168.1.100`
+
 ### Mode Adaptation
 
 This prompt works in both **Tool Mode** (with MCP tools) and **Guided Mode** (manual command suggestions):

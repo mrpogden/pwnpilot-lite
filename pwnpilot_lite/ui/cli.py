@@ -4,6 +4,8 @@ import json
 from typing import Any, Dict, List, Optional
 
 from pwnpilot_lite.core.ai_provider import AIProvider
+from pwnpilot_lite.core.action_classifier import ActionClassifier
+from pwnpilot_lite.core.autonomous_manager import AutonomousManager
 from pwnpilot_lite.prompts.prompt_loader import PromptLoader
 from pwnpilot_lite.prompts.template_engine import TemplateEngine
 from pwnpilot_lite.session.session_manager import SessionManager
@@ -67,6 +69,10 @@ class CLI:
         self.tool_name_set = set()
         self.system_prompt = ""
 
+        # Autonomous mode components
+        self.action_classifier = ActionClassifier()
+        self.autonomous_manager = AutonomousManager()
+
     def initialize(self) -> None:
         """Initialize CLI with tools and system prompt."""
         if self.mcp_client:
@@ -117,7 +123,7 @@ class CLI:
                 print(f"🔄 Tool result caching enabled (TTL: {self.tool_cache.ttl_seconds}s)")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /summary | /paste | /guided")
+            print("\nCommands: /exit | /tokens | /cache | /summarize | /sessions | /load <id> | /summary | /paste | /guided | /autonomous | /scope")
         else:
             # Guided mode
             if self.enable_caching and self.ai_provider.supports_caching():
@@ -126,7 +132,7 @@ class CLI:
                 print("📊 Token monitoring enabled")
             if self.enable_streaming and self.ai_provider.supports_streaming():
                 print("⚡ Streaming responses enabled")
-            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /summary | /prompt | /tools")
+            print("\nCommands: /exit | /tokens | /summarize | /sessions | /load <id> | /summary | /prompt | /tools | /scope")
             print("\n💡 In guided mode:")
             print("   - First prompt: Single-line (ask your question)")
             print("   - After AI responds: Multi-line mode (paste output, type 'END')")
@@ -228,6 +234,28 @@ class CLI:
             # Handle /summary command
             if user_input.lower() == "/summary":
                 self._handle_summary_command()
+                continue
+
+            # Handle /autonomous command - enter autonomous mode
+            if user_input.lower().startswith("/autonomous"):
+                self._handle_autonomous_command(user_input)
+                continue
+
+            # Handle /prompt command
+            # In autonomous mode: exit to prompt mode
+            # In guided mode after first message: switch to single-line input
+            if user_input.lower() == "/prompt":
+                if self.autonomous_manager.active:
+                    self._handle_prompt_command()
+                    continue
+                else:
+                    # In guided mode, this is already handled above
+                    # Just continue to let normal flow handle it
+                    pass
+
+            # Handle /scope command - manage scope
+            if user_input.lower().startswith("/scope"):
+                self._handle_scope_command(user_input)
                 continue
 
             # Add user message to conversation
@@ -569,6 +597,390 @@ class CLI:
         print(f"\n✅ Switched to Tools Mode ({len(self.tools)} tools available)")
         print("   AI can now execute tools with your approval")
         print("   Use '/guided' to switch back to guided mode\n")
+
+    def _handle_autonomous_command(self, user_input: str) -> None:
+        """Handle /autonomous command - enter autonomous mode."""
+        if not self.mcp_client:
+            print("\n❌ Autonomous mode requires tools mode")
+            print("   Start with MCP server enabled to use autonomous mode\n")
+            return
+
+        if self.autonomous_manager.active:
+            print("\n⚠️  Already in autonomous mode")
+            print(self.autonomous_manager.get_status())
+            return
+
+        # Parse arguments: /autonomous [--iterations N] [--tokens N] [--delay S] [objective]
+        parts = user_input.split(maxsplit=1)
+        args_str = parts[1] if len(parts) > 1 else ""
+
+        max_iterations = None
+        max_tokens = None
+        iteration_delay = 2.0  # Default 2 seconds between iterations
+        objective = ""
+
+        # Simple argument parsing
+        import re
+        iter_match = re.search(r'--iterations?\s+(\d+)', args_str)
+        token_match = re.search(r'--tokens?\s+(\d+)', args_str)
+        delay_match = re.search(r'--delay\s+(\d+(?:\.\d+)?)', args_str)
+
+        if iter_match:
+            max_iterations = int(iter_match.group(1))
+            args_str = args_str[:iter_match.start()] + args_str[iter_match.end():]
+
+        if token_match:
+            max_tokens = int(token_match.group(1))
+            args_str = args_str[:token_match.start()] + args_str[token_match.end():]
+
+        if delay_match:
+            iteration_delay = float(delay_match.group(1))
+            args_str = args_str[:delay_match.start()] + args_str[delay_match.end():]
+
+        objective = args_str.strip()
+
+        # Show warning and get confirmation
+        print("\n" + "="*60)
+        print("⚠️  AUTONOMOUS MODE WARNING")
+        print("="*60)
+        print("The agent will operate continuously until:")
+        print("  • The objective is achieved")
+        print("  • You type /prompt to return to normal mode")
+        if max_iterations:
+            print(f"  • Maximum iterations reached ({max_iterations})")
+        if max_tokens:
+            print(f"  • Maximum tokens spent ({max_tokens:,})")
+        print()
+        print("Safety Controls:")
+        print("  • SAFE: Actions on in-scope targets")
+        print("  • NEEDS APPROVAL: Destructive actions")
+        print("  • FORBIDDEN: Out-of-scope or local filesystem destruction")
+        print()
+        print(self.action_classifier.get_scope_summary())
+        print()
+
+        if not objective:
+            print("❌ No objective provided")
+            print("Usage: /autonomous [--iterations N] [--tokens N] [--delay S] <objective>")
+            print("Example: /autonomous --iterations 50 --delay 3 scan target and exploit vulnerabilities\n")
+            return
+
+        print(f"   Rate limiting: {iteration_delay}s delay between iterations")
+        print()
+
+        confirm = self._prompt_user("Start autonomous mode? [y/N]: ").strip().lower()
+        if confirm != "y":
+            print("\n⏸️  Autonomous mode cancelled\n")
+            return
+
+        # Initialize autonomous mode
+        self.autonomous_manager = AutonomousManager(
+            max_iterations=max_iterations,
+            max_tokens=max_tokens,
+            iteration_delay=iteration_delay
+        )
+        self.autonomous_manager.start()
+
+        # Log autonomous mode start
+        self.session_manager.append_log({
+            "type": "autonomous_mode_start",
+            "objective": objective,
+            "max_iterations": max_iterations,
+            "max_tokens": max_tokens,
+            "scope": self.action_classifier.scope_targets
+        })
+
+        print("\n🤖 Autonomous mode activated")
+        print(f"   Objective: {objective}")
+        print(self.autonomous_manager.get_status())
+        print()
+
+        # Add objective as user message and start autonomous loop
+        self.session_manager.add_user_message(f"[AUTONOMOUS MODE] {objective}")
+        self._run_autonomous_loop()
+
+    def _handle_prompt_command(self) -> None:
+        """Handle /prompt command - exit autonomous mode."""
+        if not self.autonomous_manager.active:
+            print("\n⚠️  Not in autonomous mode\n")
+            return
+
+        self.autonomous_manager.pause()
+        reason = self.autonomous_manager.get_stop_reason()
+
+        print(f"\n⏸️  Autonomous mode paused: {reason}")
+        print(f"   Completed {self.autonomous_manager.iterations} iterations")
+        print(f"   Used {self.autonomous_manager.tokens_used:,} tokens\n")
+
+        # Log autonomous mode stop
+        self.session_manager.append_log({
+            "type": "autonomous_mode_stop",
+            "reason": reason,
+            "iterations": self.autonomous_manager.iterations,
+            "tokens_used": self.autonomous_manager.tokens_used
+        })
+
+        self.autonomous_manager.stop()
+        print("✅ Returned to prompt mode\n")
+
+    def _handle_scope_command(self, user_input: str) -> None:
+        """Handle /scope command - manage scope."""
+        parts = user_input.split(maxsplit=2)
+
+        if len(parts) == 1:
+            # Just /scope - show current scope
+            print("\n" + self.action_classifier.get_scope_summary() + "\n")
+            return
+
+        subcommand = parts[1].lower()
+
+        if subcommand == "add" and len(parts) == 3:
+            target = parts[2]
+
+            # Warn if target contains protocol prefix
+            if target.startswith(("http://", "https://", "ftp://", "ftps://")):
+                print(f"\n⚠️  Warning: Target contains protocol prefix: {target}")
+                print("   Scope targets should be hostnames, IPs, or subnets WITHOUT protocols")
+                print("   Examples:")
+                print("     • Hostnames: example.com, testphp.vulnweb.com")
+                print("     • IP addresses: 192.168.1.100, 10.10.11.50")
+                print("     • Subnets: 192.168.1.0/24, 10.10.10.0/24")
+                print(f"\n   Adding anyway, but consider using: {target.split('://', 1)[1] if '://' in target else target}\n")
+
+            self.action_classifier.add_scope_target(target)
+            print(f"✅ Added '{target}' to scope\n")
+
+        elif subcommand == "remove" and len(parts) == 3:
+            target = parts[2]
+            self.action_classifier.remove_scope_target(target)
+            print(f"\n✅ Removed '{target}' from scope\n")
+
+        elif subcommand == "clear":
+            self.action_classifier.scope_targets = []
+            print("\n✅ Cleared all scope targets\n")
+
+        else:
+            print("\n⚠️  Usage:")
+            print("   /scope              - Show current scope")
+            print("   /scope add <target> - Add target to scope")
+            print("   /scope remove <target> - Remove target from scope")
+            print("   /scope clear        - Clear all scope targets")
+            print("\n📋 Scope Target Examples:")
+            print("   • Hostnames: example.com, testphp.vulnweb.com")
+            print("   • IP addresses: 192.168.1.100, 10.10.11.50")
+            print("   • Subnets: 192.168.1.0/24, 10.10.10.0/24")
+            print("\n⚠️  DO NOT include protocol prefixes (http://, https://, etc.)\n")
+
+    def _run_autonomous_loop(self) -> None:
+        """Run the autonomous operation loop."""
+        import time
+
+        while self.autonomous_manager.should_continue():
+            self.autonomous_manager.increment_iteration()
+
+            print(f"\n{'='*60}")
+            print(f"🤖 Autonomous Iteration {self.autonomous_manager.iterations}")
+            print(f"{'='*60}\n")
+
+            try:
+                # Get AI response with exponential backoff retry
+                response = self._call_ai_with_retry()
+
+                blocks = self._extract_blocks(response)
+                last_usage = response.get("usage", {})
+
+                # Track token usage
+                if self.token_tracker and last_usage:
+                    self.token_tracker.update(last_usage)
+                    self.autonomous_manager.add_tokens(
+                        last_usage.get("input_tokens", 0) + last_usage.get("output_tokens", 0)
+                    )
+
+                # Check for tool requests
+                tool_blocks = [b for b in blocks if b.get("type") == "tool_use"]
+
+                if not tool_blocks:
+                    # No tool requested, AI thinks it's done
+                    print("\n✅ AI indicates objective complete or no further actions")
+                    self.session_manager.add_assistant_message(blocks)
+                    break
+
+                # Add assistant message with tool request
+                self.session_manager.add_assistant_message(blocks)
+
+                # Process first tool (autonomous mode handles one at a time)
+                tool_block = tool_blocks[0]
+                approved = self._handle_autonomous_tool_execution(tool_block)
+
+                if not approved:
+                    print("\n⏸️  Action blocked or denied - pausing autonomous mode")
+                    self.autonomous_manager.pause()
+                    break
+
+            except KeyboardInterrupt:
+                print("\n\n⏸️  Keyboard interrupt - pausing autonomous mode")
+                self.autonomous_manager.pause()
+                break
+
+            except KeyError as exc:
+                # Handle response parsing errors
+                print(f"\n❌ Response parsing error: {exc}")
+                print("   Continuing to next iteration...")
+                continue
+
+            except Exception as exc:
+                error_msg = str(exc)
+                print(f"\n❌ Error in autonomous loop: {error_msg}")
+
+                # Check if it's a throttling error
+                if "ThrottlingException" in error_msg or "Too many requests" in error_msg:
+                    print("   Rate limit exceeded - this should have been handled by retry logic")
+                    print("   Increase --delay or reduce iteration speed")
+
+                self.autonomous_manager.pause()
+                break
+
+        # Autonomous loop ended
+        if not self.autonomous_manager.active:
+            return
+
+        reason = self.autonomous_manager.get_stop_reason()
+        print(f"\n{'='*60}")
+        print(f"⏸️  Autonomous mode stopped: {reason}")
+        print(f"{'='*60}")
+        print(f"   Completed {self.autonomous_manager.iterations} iterations")
+        print(f"   Used {self.autonomous_manager.tokens_used:,} tokens\n")
+
+        self.session_manager.append_log({
+            "type": "autonomous_mode_stop",
+            "reason": reason,
+            "iterations": self.autonomous_manager.iterations,
+            "tokens_used": self.autonomous_manager.tokens_used
+        })
+
+        self.autonomous_manager.stop()
+
+    def _call_ai_with_retry(self, max_retries: int = 5) -> Dict[str, Any]:
+        """
+        Call AI provider with exponential backoff retry.
+
+        Args:
+            max_retries: Maximum number of retries
+
+        Returns:
+            AI response
+
+        Raises:
+            Exception: If all retries fail
+        """
+        import time
+
+        for attempt in range(max_retries):
+            try:
+                response = self.ai_provider.chat(
+                    self.system_prompt,
+                    self.session_manager.get_messages(),
+                    self.tools,
+                    self.max_tokens,
+                    self.enable_caching and self.ai_provider.supports_caching(),
+                    self.enable_streaming and self.ai_provider.supports_streaming(),
+                )
+                return response
+
+            except Exception as exc:
+                error_msg = str(exc)
+
+                # Check if it's a throttling error
+                is_throttle = "ThrottlingException" in error_msg or "Too many requests" in error_msg
+
+                if is_throttle and attempt < max_retries - 1:
+                    # Exponential backoff: 2^attempt seconds
+                    wait_time = 2 ** attempt
+                    print(f"\n⚠️  Rate limit hit - waiting {wait_time}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Not a throttle error, or out of retries
+                    raise
+
+        raise Exception(f"Failed after {max_retries} retries")
+
+    def _handle_autonomous_tool_execution(self, tool_block: Dict[str, Any]) -> bool:
+        """
+        Handle tool execution in autonomous mode with safety classification.
+
+        Returns:
+            True if executed, False if blocked/denied
+        """
+        tool_name = tool_block.get("name", "")
+        tool_input = tool_block.get("input", {}) or {}
+        tool_id = tool_block.get("id")
+
+        # Classify action
+        classification, reason = self.action_classifier.classify_action(tool_name, tool_input)
+
+        print(f"\n🔧 Proposed tool: {tool_name}")
+        print(f"   Input: {json.dumps(tool_input, indent=2)}")
+        print(f"   Classification: {classification}")
+        print(f"   Reason: {reason}")
+
+        # Handle based on classification
+        if classification == "FORBIDDEN":
+            print("   ❌ Action FORBIDDEN - will not execute")
+            tool_result = {
+                "success": False,
+                "error": "Action forbidden",
+                "message": f"Action blocked by safety controls: {reason}"
+            }
+            self.session_manager.add_tool_result(tool_id, tool_result)
+            return False
+
+        elif classification == "NEEDS_APPROVAL":
+            print("   ⚠️  Action NEEDS APPROVAL")
+            approval = self._prompt_user("   Approve this action? [y/N]: ").strip().lower()
+
+            if approval != "y":
+                print("   ❌ Action denied by operator")
+                tool_result = {
+                    "success": False,
+                    "error": "User denied execution",
+                    "message": "Operator denied destructive action"
+                }
+                self.session_manager.add_tool_result(tool_id, tool_result)
+                return False
+
+            print("   ✅ Action approved by operator")
+
+        else:  # SAFE
+            print("   ✅ Action SAFE - executing automatically")
+
+        # Execute the tool
+        tool_result, cache_hit = self.mcp_client.execute_tool(tool_name, tool_input)
+
+        output_preview = json.dumps(tool_result, indent=2)
+        if len(output_preview) > 1000:
+            output_preview = output_preview[:1000] + "..."
+
+        if cache_hit:
+            print(f"\n💚 Cached result:")
+        else:
+            print(f"\n📄 Tool output:")
+
+        print(f"{output_preview}\n")
+
+        self.session_manager.append_log({
+            "type": "autonomous_tool_execution",
+            "tool_name": tool_name,
+            "input": tool_input,
+            "classification": classification,
+            "result": tool_result,
+            "cache_hit": cache_hit,
+        })
+
+        # Add tool result to conversation
+        self.session_manager.add_tool_result(tool_id, tool_result)
+
+        return True
 
     def _show_progressive_warnings(self) -> None:
         """Show progressive context warnings."""
